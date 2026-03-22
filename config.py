@@ -1,0 +1,57 @@
+"""
+Configuration centralisée du projet.
+À adapter selon ton environnement Pi5.
+"""
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env
+load_dotenv()
+
+# Paths
+BASE_DIR = Path(__file__).parent
+DATA_DIR = BASE_DIR / "data"
+CAPTURES_DIR = DATA_DIR / "captures"
+MODELS_DIR = BASE_DIR / "models"
+LOGS_DIR = BASE_DIR / "logs"
+
+# Créer dossiers s'ils n'existent pas
+DATA_DIR.mkdir(exist_ok=True)
+CAPTURES_DIR.mkdir(exist_ok=True)
+MODELS_DIR.mkdir(exist_ok=True)
+LOGS_DIR.mkdir(exist_ok=True)
+
+# ===== CAMERA =====
+CAMERA_RESOLUTION = os.getenv("CAMERA_RESOLUTION", "4608x3456")
+CAMERA_FRAMERATE = int(os.getenv("CAMERA_FRAMERATE", "30"))
+
+# ===== DETECTION =====
+YOLO_CONFIDENCE = float(os.getenv("YOLO_CONFIDENCE", "0.5"))
+YOLO_IOU = float(os.getenv("YOLO_IOU", "0.45"))
+YOLO_MODEL = MODELS_DIR / "yolov8n.tflite"
+
+# ===== RECOGNITION =====
+EMBEDDING_THRESHOLD = float(os.getenv("EMBEDDING_THRESHOLD", "0.7"))
+MAX_INDIVIDUALS = int(os.getenv("MAX_INDIVIDUALS", "50"))
+EMBEDDING_MODEL = MODELS_DIR / "mobilenetv2.tflite"
+
+# ===== DATABASE =====
+DB_PATH = os.getenv("DB_PATH", str(DATA_DIR / "birdfeeder.db"))
+
+# ===== FLASK =====
+FLASK_PORT = int(os.getenv("FLASK_PORT", "5000"))
+FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
+FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
+
+# ===== LOGGING =====
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_FILE = LOGS_DIR / os.getenv("LOG_FILE", "birdfeeder.log")
+
+# Debug
+if __name__ == "__main__":
+    print(f"Base dir: {BASE_DIR}")
+    print(f"Data dir: {DATA_DIR}")
+    print(f"DB: {DB_PATH}")
+    print(f"YOLO model: {YOLO_MODEL}")
+    print(f"Embedding model: {EMBEDDING_MODEL}")
