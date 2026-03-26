@@ -37,7 +37,7 @@ MOTION_RESIZE_HEIGHT = int(os.getenv("MOTION_RESIZE_HEIGHT", "180"))
 # ===== DETECTION =====
 YOLO_CONFIDENCE = float(os.getenv("YOLO_CONFIDENCE", "0.5"))
 YOLO_IOU = float(os.getenv("YOLO_IOU", "0.45"))
-YOLO_MODEL = MODELS_DIR / "yolov8n.tflite"
+YOLO_MODEL = MODELS_DIR / os.getenv("YOLO_MODEL", "yolo11n.onnx")
 
 # ===== RECOGNITION =====
 EMBEDDING_THRESHOLD = float(os.getenv("EMBEDDING_THRESHOLD", "0.7"))

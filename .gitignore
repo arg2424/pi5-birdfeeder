@@ -35,6 +35,9 @@ data/*.db
 data/captures/*.jpg
 data/captures/*.png
 data/staging/*.jpg
+models/*.onnx
+models/*.tflite
+models/*.pt
 docs/images/capture_*.jpg
 .env
 *.log

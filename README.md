@@ -14,21 +14,28 @@ Capture réelle obtenue avec la caméra IMX219 branchée sur le port CSI0 du Ras
 
 ## 📊 État d'Avancement
 
-### Phase 1: Setup & Capture ⏳ EN COURS
+### Phase 1: Setup & Capture ✅ TERMINÉ
 - [x] Repo + structure dossier
 - [x] Configuration de base (config.py)
 - [x] Dépendances (requirements.txt)
 - [x] Détection caméra Pi5 (IMX219 / CSI0)
-- [x] Capture 1 image réelle
+- [x] Capture 1 image réelle (1920×1080, 344KB)
 - [x] Sauvegarde images timestampées
-- [x] Boucle de capture branchée dans `src/main.py`
-- [x] Détection mouvement simple (frame-diff)
+- [x] Boucle de capture dans `src/main.py` (interval configurable)
+- [x] Détection mouvement PIL frame-diff (scores réels: 0.001–0.18)
+- [x] Pipeline staging → captures (motion-gated)
+- [x] SQLite `motion_events` + enregistrement automatique
+- [x] Nettoyage staging au démarrage
+- [x] Script diagnostic caméra `test_camera_detection.py`
 
-### Phase 2: Détection 🔍 À FAIRE
-- [ ] Télécharger YOLOv8-nano TFLite
-- [ ] Implémentation détection oiseaux
+### Phase 2: Détection ✅ TERMINÉ
+- [x] Modèle YOLO11n ONNX (10MB, CPU, ~185ms/inférence sur Pi5)
+- [x] `onnxruntime` installé sur Pi5
+- [x] `BirdDetector.detect()` avec preprocessing letterbox + NMS
+- [x] Validé sur mésange réelle : **conf=0.862**
+- [x] Détection intégrée dans la boucle principale (après motion)
 - [ ] Cropping oiseaux individuels
-- [ ] Tests détection unittest
+- [ ] Tests unitaires `tests/test_detection.py`
 
 ### Phase 3: Reconnaissance Individuelle 🧠 À FAIRE
 - [ ] SQLite schema + tables
@@ -121,9 +128,10 @@ pi5-birdfeeder/
 │   ├── config.py              # Paramètres centralisés (à partir .env)
 │   ├── main.py                # Entry point
 │   ├── camera.py              # Capture caméra Pi5 (libcamera)
-│   ├── detection.py           # YOLOv8-nano TFLite (Phase 2)
+│   ├── detection.py           # YOLO11n ONNX — bird detection ✅
+│   ├── motion.py              # PIL frame-diff motion detection ✅
+│   ├── database.py            # SQLite motion_events ✅
 │   ├── features.py            # MobileNetV2 embedding (Phase 3)
-│   ├── database.py            # SQLite CRUD (Phase 3)
 │   ├── matching.py            # Distance cosinus matching (Phase 3)
 │   ├── api.py                 # Flask REST + WebSocket (Phase 4)
 │   └── logger.py              # Logging config
@@ -137,12 +145,13 @@ pi5-birdfeeder/
 │   ├── index.html             # Dashboard UI
 │   ├── style.css              # Styles
 │   └── app.js                 # Logic frontend
-├── models/                    # Modèles TFLite (à télécharger)
-│   ├── yolov8n.tflite         # (Phase 2)
-│   └── mobilenetv2.tflite     # (Phase 3)
+├── models/                    # Modèles ML
+│   ├── yolo11n.onnx           # YOLO11n ONNX ✅ (non versionné, ~10MB)
+│   └── mobilenetv2.tflite     # (Phase 3, à télécharger)
 ├── data/
-│   ├── birdfeeder.db          # DB SQLite (créée Phase 3)
-│   └── captures/              # Images captures
+│   ├── birdfeeder.db          # DB SQLite ✅ (motion_events)
+│   ├── staging/               # Images temporaires (nettoyées au démarrage)
+│   └── captures/              # Images avec mouvement détecté
 ├── docs/
 │   ├── DATAFLOW.md            # Flux de données complet
 │   ├── API.md                 # Endpoints REST (Phase 4)
@@ -163,12 +172,18 @@ pi5-birdfeeder/
 Voir [docs/DATAFLOW.md](docs/DATAFLOW.md)
 
 ```
-Camera (18MP) → Detection (YOLOv8) → Feature Extraction (MobileNetV2)
-    ↓
-Matching (distance cosinus) → SQLite → Flask API → WebSocket → Dashboard
+Camera IMX219 → Staging (frame N)
+  ↓
+Motion Detection (PIL diff, score) ──✅──→ Persist (captures/)
+  ↓ si motion                              ↓
+YOLO11n ONNX ──✅──→ BirdDetection     SQLite (motion_events)
+  ↓ (Phase 3)
+MobileNetV2 Embedding → Matching cosinus → Individu #N
+  ↓ (Phase 4)
+Flask API → WebSocket → Dashboard
 ```
 
-**Latence totale**: ~1.2-2.4 sec (acceptable, bien dans les 4-5 sec)
+**Latence actuelle (Pi5)**: capture ~80ms + inférence YOLO ~185ms = ~265ms/cycle
 
 ---
 
@@ -269,11 +284,11 @@ git commit -m "docs: update README for Phase 2"
 
 | Version | Phase | État | ETA |
 |---------|-------|------|-----|
-| **v0.1** | Phase 1 | ⏳ En cours | 1 semaine |
-| **v0.2** | Phase 2 | À faire | 2 semaines |
-| **v0.5** | Phase 3 | À faire | 2 semaines |
-| **v1.0** | Phase 4 | À faire | 2 semaines |
-| **v1.1** | Phase 5 | À faire | 1 semaine |
+| **v0.1** | Phase 1: Setup & Capture | ✅ Terminé | — |
+| **v0.2** | Phase 2: Détection YOLO | ✅ Terminé | — |
+| **v0.5** | Phase 3: Reconnaissance individuelle | 🔜 À faire | — |
+| **v1.0** | Phase 4: Web Dashboard | 🔜 À faire | — |
+| **v1.1** | Phase 5: Autonomie & Production | 🔜 À faire | — |
 
 ---
 
@@ -326,4 +341,4 @@ MIT
 
 ---
 
-**Dernière mise à jour**: 26 mars 2026 - Capture caméra validée
+**Dernière mise à jour**: 26 mars 2026 - Phases 1 & 2 terminées (motion detection + YOLO11n ONNX, conf=0.862 sur mésange réelle)
