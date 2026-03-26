@@ -37,12 +37,14 @@ Capture réelle obtenue avec la caméra IMX219 branchée sur le port CSI0 du Ras
 - [ ] Cropping oiseaux individuels
 - [ ] Tests unitaires `tests/test_detection.py`
 
-### Phase 3: Reconnaissance Individuelle 🧠 À FAIRE
-- [ ] SQLite schema + tables
-- [ ] Feature extraction (MobileNetV2)
-- [ ] Matching par distance cosinus
-- [ ] Enregistrement des individus (#1 → #50)
-- [ ] Tests matching
+### Phase 3: Reconnaissance Individuelle 🧠 EN COURS
+- [x] SQLite schema + tables (`individuals`, `sightings`)
+- [x] Feature extraction baseline (histogrammes couleur + luminance)
+- [x] Matching par distance cosinus
+- [x] Enregistrement des individus (#1 → #50)
+- [x] Base tests unitaires matching/features
+- [ ] Remplacer l'extracteur baseline par MobileNetV2 embeddings
+- [ ] Évaluer/calibrer le seuil de matching sur séries réelles
 
 ### Phase 4: Web Dashboard 🌐 À FAIRE
 - [ ] Flask API REST (/api/birds, /api/sightings)
@@ -286,7 +288,7 @@ git commit -m "docs: update README for Phase 2"
 |---------|-------|------|-----|
 | **v0.1** | Phase 1: Setup & Capture | ✅ Terminé | — |
 | **v0.2** | Phase 2: Détection YOLO | ✅ Terminé | — |
-| **v0.5** | Phase 3: Reconnaissance individuelle | 🔜 À faire | — |
+| **v0.5** | Phase 3: Reconnaissance individuelle | ⏳ En cours | — |
 | **v1.0** | Phase 4: Web Dashboard | 🔜 À faire | — |
 | **v1.1** | Phase 5: Autonomie & Production | 🔜 À faire | — |
 
@@ -341,4 +343,4 @@ MIT
 
 ---
 
-**Dernière mise à jour**: 26 mars 2026 - Phases 1 & 2 terminées (motion detection + YOLO11n ONNX, conf=0.862 sur mésange réelle)
+**Dernière mise à jour**: 26 mars 2026 - Phase 3 démarrée (individus/sightings + matching cosinus validé sur Pi)

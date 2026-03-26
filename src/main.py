@@ -13,9 +13,11 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 from camera import CameraHandler
-from config import CAPTURE_INTERVAL_SECONDS, LOG_FILE, LOG_LEVEL
+from config import CAPTURE_INTERVAL_SECONDS, EMBEDDING_THRESHOLD, LOG_FILE, LOG_LEVEL, MAX_INDIVIDUALS
 from database import DatabaseHandler
 from detection import BirdDetector
+from features import FeatureExtractor
+from matching import IndividualMatcher
 from motion import MotionDetector
 
 # Setup logging
@@ -37,6 +39,8 @@ def main():
     camera = CameraHandler()
     database = DatabaseHandler()
     bird_detector = BirdDetector()
+    feature_extractor = FeatureExtractor()
+    matcher = IndividualMatcher(threshold=EMBEDDING_THRESHOLD)
     motion_detector = MotionDetector()
     previous_image_path = None
 
@@ -54,12 +58,52 @@ def main():
                 if motion_result.detected:
                     persisted_image_path = camera.persist_image(image_path)
                     detections = bird_detector.detect(persisted_image_path)
-                    database.record_motion_event(
+                    motion_event_id = database.record_motion_event(
                         image_path=persisted_image_path,
                         motion_score=motion_result.score,
                         threshold=motion_result.threshold,
                         bird_detections=len(detections),
                     )
+
+                    if detections:
+                        candidates = database.get_individual_embeddings()
+                        for detection in detections:
+                            embedding = feature_extractor.extract(
+                                persisted_image_path,
+                                bbox=detection.bbox,
+                            )
+                            match = matcher.match(embedding, candidates)
+
+                            if match is None:
+                                if len(candidates) < MAX_INDIVIDUALS:
+                                    individual_id = database.create_individual(embedding)
+                                    candidates.append((individual_id, embedding))
+                                    score = 1.0
+                                    logger.info("New individual created: #%d", individual_id)
+                                else:
+                                    logger.warning(
+                                        "Max individuals reached (%d), sighting ignored",
+                                        MAX_INDIVIDUALS,
+                                    )
+                                    continue
+                            else:
+                                individual_id, score = match
+                                database.update_individual_seen(individual_id)
+
+                            database.record_sighting(
+                                image_path=persisted_image_path,
+                                individual_id=individual_id,
+                                confidence=detection.confidence,
+                                bbox=detection.bbox,
+                                motion_event_id=motion_event_id,
+                            )
+                            logger.info(
+                                "Bird sighting linked to individual #%d (similarity=%.3f, conf=%.3f)",
+                                individual_id,
+                                score,
+                                detection.confidence,
+                            )
+
                     logger.info("Motion detected before bird detection: score=%.4f", motion_result.score)
                 else:
                     logger.info("No significant motion: score=%.4f", motion_result.score)
