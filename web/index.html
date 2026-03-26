@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Pi5 Bird Feeder - Live</title>
+    <link rel="stylesheet" href="/web/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Pi5 Bird Feeder</h1>
+      <p>Visuel simple: dernières captures et détections</p>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <h2>Dernière image motion</h2>
+        <div class="latest-wrap">
+          <img id="latest-image" alt="Dernière capture" />
+        </div>
+        <div id="latest-meta" class="meta"></div>
+      </section>
+
+      <section class="panel stats">
+        <h2>Stats</h2>
+        <div class="stat-grid">
+          <article><span id="stat-motion">0</span><label>Motion events</label></article>
+          <article><span id="stat-sightings">0</span><label>Sightings</label></article>
+          <article><span id="stat-individuals">0</span><label>Individus</label></article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Dernières détections</h2>
+        <div id="sightings" class="sightings"></div>
+      </section>
+    </main>
+
+    <script src="/web/app.js"></script>
+  </body>
+</html>

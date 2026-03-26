@@ -46,10 +46,11 @@ Capture réelle obtenue avec la caméra IMX219 branchée sur le port CSI0 du Ras
 - [ ] Remplacer l'extracteur baseline par MobileNetV2 embeddings
 - [ ] Évaluer/calibrer le seuil de matching sur séries réelles
 
-### Phase 4: Web Dashboard 🌐 À FAIRE
-- [ ] Flask API REST (/api/birds, /api/sightings)
+### Phase 4: Web Dashboard 🌐 EN COURS
+- [x] Serveur Flask simple (`src/api.py`)
+- [x] Dashboard HTML/CSS/JS minimal (`web/`)
+- [x] API REST simple (`/api/health`, `/api/stats`, `/api/latest`, `/api/sightings`)
 - [ ] WebSocket temps-réel
-- [ ] Dashboard HTML/CSS/JS
 - [ ] Graphes (fréquentation, courbes)
 - [ ] Tests intégration
 
@@ -113,11 +114,17 @@ python3 src/main.py
 
 Le programme capture ensuite une image toutes les `CAPTURE_INTERVAL_SECONDS` secondes dans `data/captures/`.
 
-### Phase 4 (Web)
+### Visualisation Web (simple)
 ```bash
-python src/api.py
-# Accder à http://localhost:5000/
+python3 src/api.py
+# Accéder à http://<IP_DU_PI>:5000/
 ```
+
+Endpoints disponibles:
+- `GET /api/health`
+- `GET /api/stats`
+- `GET /api/latest`
+- `GET /api/sightings?limit=24`
 
 ---
 
@@ -135,8 +142,7 @@ pi5-birdfeeder/
 │   ├── database.py            # SQLite motion_events ✅
 │   ├── features.py            # MobileNetV2 embedding (Phase 3)
 │   ├── matching.py            # Distance cosinus matching (Phase 3)
-│   ├── api.py                 # Flask REST + WebSocket (Phase 4)
-│   └── logger.py              # Logging config
+│   └── api.py                 # Serveur web simple (API + UI)
 ├── tests/
 │   ├── __init__.py
 │   ├── test_camera.py
@@ -289,7 +295,7 @@ git commit -m "docs: update README for Phase 2"
 | **v0.1** | Phase 1: Setup & Capture | ✅ Terminé | — |
 | **v0.2** | Phase 2: Détection YOLO | ✅ Terminé | — |
 | **v0.5** | Phase 3: Reconnaissance individuelle | ⏳ En cours | — |
-| **v1.0** | Phase 4: Web Dashboard | 🔜 À faire | — |
+| **v1.0** | Phase 4: Web Dashboard | ⏳ En cours | — |
 | **v1.1** | Phase 5: Autonomie & Production | 🔜 À faire | — |
 
 ---
@@ -343,4 +349,4 @@ MIT
 
 ---
 
-**Dernière mise à jour**: 26 mars 2026 - Phase 3 démarrée (individus/sightings + matching cosinus validé sur Pi)
+**Dernière mise à jour**: 26 mars 2026 - Serveur web simple ajouté (API Flask + dashboard minimal)
