@@ -283,6 +283,7 @@ git commit -m "docs: update README for Phase 2"
 ```bash
 rpicam-still --list-cameras
 v4l2-ctl --list-devices
+python3 test_camera_detection.py
 ```
 
 Pour une IMX219 branchée sur CSI0, la configuration testée est:

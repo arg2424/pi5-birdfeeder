@@ -35,6 +35,7 @@ data/*.db
 data/captures/*.jpg
 data/captures/*.png
 data/staging/*.jpg
+docs/images/capture_*.jpg
 .env
 *.log
 logs/
