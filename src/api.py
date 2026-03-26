@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 from pathlib import Path
 from urllib.parse import quote
 
 from flask import Flask, jsonify, request, send_file
+
+parent_dir = str(Path(__file__).parent.parent)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
 from config import BASE_DIR, DB_PATH, FLASK_DEBUG, FLASK_HOST, FLASK_PORT
 
