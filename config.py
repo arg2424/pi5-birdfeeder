@@ -13,18 +13,26 @@ load_dotenv()
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 CAPTURES_DIR = DATA_DIR / "captures"
+STAGING_DIR = DATA_DIR / "staging"
 MODELS_DIR = BASE_DIR / "models"
 LOGS_DIR = BASE_DIR / "logs"
 
 # Créer dossiers s'ils n'existent pas
 DATA_DIR.mkdir(exist_ok=True)
 CAPTURES_DIR.mkdir(exist_ok=True)
+STAGING_DIR.mkdir(exist_ok=True)
 MODELS_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
 
 # ===== CAMERA =====
-CAMERA_RESOLUTION = os.getenv("CAMERA_RESOLUTION", "4608x3456")
-CAMERA_FRAMERATE = int(os.getenv("CAMERA_FRAMERATE", "30"))
+CAMERA_RESOLUTION = os.getenv("CAMERA_RESOLUTION", "3280x2464")
+CAMERA_FRAMERATE = int(os.getenv("CAMERA_FRAMERATE", "20"))
+CAPTURE_INTERVAL_SECONDS = int(os.getenv("CAPTURE_INTERVAL_SECONDS", "60"))
+
+# ===== MOTION =====
+MOTION_SCORE_THRESHOLD = float(os.getenv("MOTION_SCORE_THRESHOLD", "0.02"))
+MOTION_RESIZE_WIDTH = int(os.getenv("MOTION_RESIZE_WIDTH", "320"))
+MOTION_RESIZE_HEIGHT = int(os.getenv("MOTION_RESIZE_HEIGHT", "180"))
 
 # ===== DETECTION =====
 YOLO_CONFIDENCE = float(os.getenv("YOLO_CONFIDENCE", "0.5"))

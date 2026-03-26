@@ -4,6 +4,12 @@ Système autonomous de surveillance du mangeoir à oiseaux avec reconnaissance i
 
 **Objectif**: Identifier les ~50 mésanges individuelles qui viennent au mangeoir, suivre leur fréquentation (4x aujourd'hui, 28x ce mois), et exposer les données via un dashboard web avec courbes et métriques environnementales.
 
+## Validation caméra
+
+Capture réelle obtenue avec la caméra IMX219 branchée sur le port CSI0 du Raspberry Pi 5.
+
+![Dernière capture caméra](docs/images/camera-latest.jpg)
+
 ---
 
 ## 📊 État d'Avancement
@@ -12,9 +18,11 @@ Système autonomous de surveillance du mangeoir à oiseaux avec reconnaissance i
 - [x] Repo + structure dossier
 - [x] Configuration de base (config.py)
 - [x] Dépendances (requirements.txt)
-- [ ] Test caméra Pi5 (capture 1 image)
-- [ ] Sauvegarde images timestampées
-- [ ] Détection mouvement simple (frame-diff)
+- [x] Détection caméra Pi5 (IMX219 / CSI0)
+- [x] Capture 1 image réelle
+- [x] Sauvegarde images timestampées
+- [x] Boucle de capture branchée dans `src/main.py`
+- [x] Détection mouvement simple (frame-diff)
 
 ### Phase 2: Détection 🔍 À FAIRE
 - [ ] Télécharger YOLOv8-nano TFLite
@@ -48,8 +56,9 @@ Système autonomous de surveillance du mangeoir à oiseaux avec reconnaissance i
 ## 🚀 Installation
 
 ### Prérequis
-- **Raspberry Pi 5** avec Ubuntu
-- **Caméra Pi Camera v3** (18MP)
+- **Raspberry Pi 5** avec Raspberry Pi OS / Bookworm
+- **Caméra IMX219** compatible Raspberry Pi (testée sur Arducam IMX219)
+- **Connexion CSI0**
 - **VRAM**: min 2GB
 - **SD Card**: min 16GB
 
@@ -71,6 +80,9 @@ pip install -r requirements.txt
 # Copier .env
 cp .env.example .env
 # éditer .env si nécessaire (ports, résolutions, etc.)
+
+# Dépendances système caméra
+sudo apt install -y python3-picamera2 python3-libcamera python3-dotenv
 ```
 
 ---
@@ -79,16 +91,18 @@ cp .env.example .env
 
 ### Phase 1 (Setup)
 ```bash
-python src/main.py
+python3 src/main.py
 ```
 
-**Output attendu**:
+**Comportement attendu**:
 ```
 2026-03-22 15:30:45,123 - __main__ - INFO - 🐦 Pi5 Bird Feeder - Starting...
 2026-03-22 15:30:45,124 - __main__ - INFO - Phase 1: Setup & Camera Capture
-✅ Config loaded successfully
-⏳ Phase 1 implementation coming next...
+2026-03-22 15:30:45,125 - __main__ - INFO - Capture interval: 60s
+✅ Camera loop started. Ctrl+C pour arrêter.
 ```
+
+Le programme capture ensuite une image toutes les `CAPTURE_INTERVAL_SECONDS` secondes dans `data/captures/`.
 
 ### Phase 4 (Web)
 ```bash
@@ -170,8 +184,14 @@ cp .env.example .env
 
 ```env
 # Camera
-CAMERA_RESOLUTION=4608x3456       # 18MP du Pi Camera v3
-CAMERA_FRAMERATE=30
+CAMERA_RESOLUTION=3280x2464       # résolution max IMX219
+CAMERA_FRAMERATE=20
+CAPTURE_INTERVAL_SECONDS=60
+
+# Motion detection
+MOTION_SCORE_THRESHOLD=0.02
+MOTION_RESIZE_WIDTH=320
+MOTION_RESIZE_HEIGHT=180
 
 # Detection
 YOLO_CONFIDENCE=0.5               # Confiance min détection
@@ -261,13 +281,34 @@ git commit -m "docs: update README for Phase 2"
 
 ### Camera non détectée
 ```bash
-libcamera-hello --list
+rpicam-still --list-cameras
 v4l2-ctl --list-devices
 ```
+
+Pour une IMX219 branchée sur CSI0, la configuration testée est:
+
+```bash
+camera_auto_detect=0
+dtoverlay=imx219,cam0
+```
+
+Puis redémarrage du Pi.
 
 ### Import errors
 ```bash
 pip install --upgrade -r requirements.txt
+```
+
+Si l'erreur concerne `libcamera` ou `picamera2`, exécuter avec le Python système:
+
+```bash
+python3 src/main.py
+```
+
+et vérifier les paquets:
+
+```bash
+sudo apt install -y python3-picamera2 python3-libcamera python3-dotenv
 ```
 
 ### DB lockée
@@ -284,4 +325,4 @@ MIT
 
 ---
 
-**Dernière mise à jour**: 22 mars 2026 - Phase 1 ⏳
+**Dernière mise à jour**: 26 mars 2026 - Capture caméra validée
