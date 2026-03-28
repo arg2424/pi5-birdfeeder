@@ -1,12 +1,16 @@
 """Serveur web simple pour visualiser les captures et détections."""
 from __future__ import annotations
 
+import io
 import sqlite3
 import sys
+import threading
+import time
 from pathlib import Path
 from urllib.parse import quote
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, Response, jsonify, request, send_file
+from PIL import Image
 
 parent_dir = str(Path(__file__).parent.parent)
 if parent_dir not in sys.path:
@@ -17,6 +21,50 @@ from config import BASE_DIR, DB_PATH, FLASK_DEBUG, FLASK_HOST, FLASK_PORT
 WEB_DIR = BASE_DIR / "web"
 
 app = Flask(__name__, static_folder=str(WEB_DIR), static_url_path="/web")
+
+_camera_lock = threading.Lock()
+_camera_instance = None
+
+
+def _open_live_camera():
+    """Initialise une caméra dédiée au flux live (si disponible)."""
+    global _camera_instance
+    with _camera_lock:
+        if _camera_instance is not None:
+            return _camera_instance
+
+        try:
+            from picamera2 import Picamera2
+        except Exception:
+            return None
+
+        cam = Picamera2()
+        config = cam.create_video_configuration(main={"size": (1280, 720)})
+        cam.configure(config)
+        cam.start()
+        _camera_instance = cam
+        return _camera_instance
+
+
+def _mjpeg_generator():
+    """Produit un flux MJPEG pour affichage navigateur."""
+    cam = _open_live_camera()
+    if cam is None:
+        return
+
+    while True:
+        frame = cam.capture_array()
+        image = Image.fromarray(frame).convert("RGB")
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG", quality=82)
+        payload = buffer.getvalue()
+
+        yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n"
+            b"Cache-Control: no-cache\r\n\r\n" + payload + b"\r\n"
+        )
+        time.sleep(0.06)
 
 
 def _to_web_path(image_path: str) -> str | None:
@@ -39,6 +87,11 @@ def _fetch_rows(query: str, params: tuple = ()) -> list[sqlite3.Row]:
 @app.get("/")
 def index():
     return send_file(WEB_DIR / "index.html")
+
+
+@app.get("/camera/live")
+def live_camera_page():
+    return send_file(WEB_DIR / "live.html")
 
 
 @app.get("/api/health")
@@ -120,6 +173,19 @@ def media(relpath: str):
     if not file_path.exists():
         return jsonify({"error": "not found"}), 404
     return send_file(file_path)
+
+
+@app.get("/api/camera/stream")
+def camera_stream():
+    cam = _open_live_camera()
+    if cam is None:
+        return jsonify({"error": "camera unavailable"}), 503
+
+    return Response(
+        _mjpeg_generator(),
+        mimetype="multipart/x-mixed-replace; boundary=frame",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 if __name__ == "__main__":

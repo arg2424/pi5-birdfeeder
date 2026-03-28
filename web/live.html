@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Pi5 Bird Feeder - Camera Live</title>
+    <link rel="stylesheet" href="/web/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-main">
+        <div>
+          <h1>Camera Live</h1>
+          <p>Flux temps reel pour cadrage et reglage optique</p>
+        </div>
+        <a class="live-link back-link" href="/">Retour dashboard</a>
+      </div>
+    </header>
+
+    <main class="layout live-layout">
+      <section class="panel live-panel">
+        <h2>Apercu direct</h2>
+        <div class="live-wrap">
+          <img id="live-stream" src="/api/camera/stream" alt="Flux camera live" />
+        </div>
+        <p class="meta">
+          Si le flux ne s affiche pas: verifier qu aucun autre process n utilise deja la camera.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
