@@ -151,6 +151,10 @@ def live_camera_page():
 @app.get("/mesange")
 def mesange_page():
     return send_file(WEB_DIR / "mesange.html")
+    
+@app.get("/events")
+def events_page():
+    return send_file(WEB_DIR / "events.html")
 
 
 @app.get("/api/health")
@@ -202,6 +206,58 @@ def mesange_delete(filename: str):
 
 
 @app.post("/api/admin/reset")
+@app.get("/api/events")
+def events_list():
+    """Liste paginée des motion events avec image et nb détections."""
+    limit = int(request.args.get("limit", "50"))
+    limit = max(1, min(limit, 500))
+    offset = int(request.args.get("offset", "0"))
+    offset = max(0, offset)
+
+    rows = _fetch_rows(
+        """
+        SELECT id, created_at, image_path, motion_score, bird_detections
+        FROM motion_events
+        ORDER BY id DESC
+        LIMIT ? OFFSET ?
+        """,
+        (limit, offset),
+    )
+    total_rows = _fetch_rows("SELECT COUNT(*) AS n FROM motion_events")
+    total = dict(total_rows[0])["n"] if total_rows else 0
+
+    items = []
+    for r in rows:
+        item = dict(r)
+        item["image_url"] = _to_web_path(item["image_path"])
+        items.append(item)
+    return jsonify({"items": items, "total": total, "limit": limit, "offset": offset})
+
+@app.delete("/api/events/<int:event_id>")
+def event_delete(event_id: int):
+    """Supprime un motion event (DB + fichier image)."""
+    rows = _fetch_rows(
+        "SELECT image_path FROM motion_events WHERE id = ? LIMIT 1",
+        (event_id,),
+    )
+    if not rows:
+        return jsonify({"error": "not found"}), 404
+
+    image_path = dict(rows[0])["image_path"]
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM sightings WHERE motion_event_id = ?", (event_id,))
+        conn.execute("DELETE FROM motion_events WHERE id = ?", (event_id,))
+        conn.commit()
+
+    try:
+        p = Path(image_path).resolve()
+        if str(p).startswith(str(BASE_DIR.resolve())) and p.exists():
+            p.unlink()
+    except Exception:
+        pass
+
+    return jsonify({"deleted": event_id})
 def admin_reset():
     """Remet la DB à zéro et vide captures/ et mesange/."""
     import shutil

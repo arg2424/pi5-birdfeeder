@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Pi5 Bird Feeder - Galerie events</title>
+    <link rel="stylesheet" href="/web/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-main">
+        <div>
+          <h1>Galerie events</h1>
+          <p id="gallery-count">Chargement...</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="action-btn" id="btn-select-all" onclick="selectAll()">Tout sélectionner</button>
+          <button class="action-btn danger-btn" id="btn-delete-sel" onclick="deleteSelected()" disabled>
+            Supprimer sélection (<span id="sel-count">0</span>)
+          </button>
+          <a class="live-link back-link" href="/">Retour dashboard</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout live-layout">
+      <section class="panel live-panel">
+        <div id="gallery" class="mesange-grid"></div>
+        <div id="pagination" class="pagination"></div>
+        <p id="empty-msg" class="meta" style="display:none">
+          Aucun event enregistré pour l'instant.
+        </p>
+      </section>
+    </main>
+
+    <script>
+      const PAGE_SIZE = 48;
+      let currentOffset = 0;
+      let totalEvents = 0;
+      let selected = new Set();
+
+      function updateSelBtn() {
+        const btn = document.getElementById('btn-delete-sel');
+        btn.disabled = selected.size === 0;
+        document.getElementById('sel-count').textContent = selected.size;
+      }
+
+      function selectAll() {
+        document.querySelectorAll('.event-card').forEach(card => {
+          const id = card.dataset.id;
+          selected.add(id);
+          card.classList.add('selected');
+        });
+        updateSelBtn();
+      }
+
+      async function load(offset = 0) {
+        currentOffset = offset;
+        selected.clear();
+        updateSelBtn();
+
+        const res = await fetch(`/api/events?limit=${PAGE_SIZE}&offset=${offset}`);
+        const data = await res.json();
+        totalEvents = data.total;
+
+        const grid = document.getElementById('gallery');
+        const emptyMsg = document.getElementById('empty-msg');
+        const countEl = document.getElementById('gallery-count');
+
+        countEl.textContent = `${data.total} event${data.total !== 1 ? 's' : ''} enregistré${data.total !== 1 ? 's' : ''}`;
+        grid.innerHTML = '';
+
+        if (!data.items.length) {
+          emptyMsg.style.display = '';
+          renderPagination(data.total, offset);
+          return;
+        }
+        emptyMsg.style.display = 'none';
+
+        for (const item of data.items) {
+          const card = document.createElement('article');
+          card.className = 'mesange-card event-card';
+          card.dataset.id = item.id;
+          card.id = `card-${item.id}`;
+
+          const birds = item.bird_detections > 0
+            ? `<span class="badge-bird">🐦 ${item.bird_detections}</span>`
+            : `<span class="badge-none">—</span>`;
+          const score = Number(item.motion_score).toFixed(4);
+          const imgUrl = item.image_url ? `${item.image_url}?t=${Date.now()}` : '';
+
+          card.innerHTML = `
+            <div class="event-select" onclick="toggleSelect('${item.id}', this.closest('.event-card'))">
+              <div class="mesange-img-wrap">
+                ${imgUrl ? `<img src="${imgUrl}" alt="event ${item.id}" loading="lazy" />` : '<div class="no-img">pas d\'image</div>'}
+              </div>
+              <div class="mesange-info">
+                <strong>#${item.id}</strong> ${birds}<br/>
+                <span class="msg">${item.created_at}</span><br/>
+                <span class="msg">motion=${score}</span>
+              </div>
+            </div>
+            <button class="delete-btn" onclick="deleteSingle(${item.id}, this)">Supprimer</button>
+          `;
+          grid.appendChild(card);
+        }
+
+        renderPagination(data.total, offset);
+      }
+
+      function toggleSelect(id, card) {
+        if (selected.has(id)) {
+          selected.delete(id);
+          card.classList.remove('selected');
+        } else {
+          selected.add(id);
+          card.classList.add('selected');
+        }
+        updateSelBtn();
+      }
+
+      async function deleteSingle(id, btn) {
+        btn.disabled = true;
+        btn.textContent = '...';
+        const res = await fetch(`/api/events/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          const card = document.getElementById(`card-${id}`);
+          card.classList.add('fade-out');
+          selected.delete(String(id));
+          setTimeout(() => { card.remove(); load(currentOffset); }, 350);
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Supprimer';
+          alert('Erreur suppression');
+        }
+      }
+
+      async function deleteSelected() {
+        if (!selected.size) return;
+        if (!confirm(`Supprimer ${selected.size} event(s) ?`)) return;
+        const ids = [...selected];
+        document.getElementById('btn-delete-sel').disabled = true;
+        let ok = 0;
+        for (const id of ids) {
+          const res = await fetch(`/api/events/${id}`, { method: 'DELETE' });
+          if (res.ok) ok++;
+        }
+        selected.clear();
+        load(currentOffset);
+      }
+
+      function renderPagination(total, offset) {
+        const container = document.getElementById('pagination');
+        container.innerHTML = '';
+        if (total <= PAGE_SIZE) return;
+
+        const pages = Math.ceil(total / PAGE_SIZE);
+        const current = Math.floor(offset / PAGE_SIZE);
+
+        for (let i = 0; i < pages; i++) {
+          const btn = document.createElement('button');
+          btn.className = 'page-btn' + (i === current ? ' page-btn-active' : '');
+          btn.textContent = i + 1;
+          btn.onclick = () => load(i * PAGE_SIZE);
+          container.appendChild(btn);
+        }
+      }
+
+      load(0);
+    </script>
+  </body>
+</html>
