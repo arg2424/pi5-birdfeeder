@@ -93,7 +93,10 @@
           card.innerHTML = `
             <div class="event-select" onclick="toggleSelect('${item.id}', this.closest('.event-card'))">
               <div class="mesange-img-wrap">
-                ${imgUrl ? `<img src="${imgUrl}" alt="event ${item.id}" loading="lazy" />` : '<div class="no-img">pas d\'image</div>'}
+                ${imgUrl ? `
+                  <img src="${imgUrl}" alt="event ${item.id}" loading="lazy" ondblclick="openFullscreen(this, event)" />
+                  <button class="img-full-btn" onclick="openFullscreen(this.previousElementSibling, event)">Photo plein ecran</button>
+                ` : '<div class="no-img">pas d\'image</div>'}
               </div>
               <div class="mesange-info">
                 <strong>#${item.id}</strong> ${birds}<br/>

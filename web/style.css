@@ -139,6 +139,7 @@ body {
   background: #ece6dc;
   aspect-ratio: 1;
   overflow: hidden;
+  position: relative;
 }
 
 .mesange-img-wrap img {
@@ -146,6 +147,24 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.img-full-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  border: 1px solid #c7d4e5;
+  background: rgba(244, 250, 255, 0.95);
+  color: #1e3a5f;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.img-full-btn:hover {
+  filter: brightness(0.96);
 }
 
 .mesange-info {
