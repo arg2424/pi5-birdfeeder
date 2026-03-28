@@ -5,7 +5,7 @@ import logging
 import os
 import time
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Ajouter le répertoire parent au path pour importer config
@@ -15,8 +15,12 @@ if parent_dir not in sys.path:
 
 from camera import CameraHandler
 from config import (
+    ALERT_MIN_CONFIDENCE,
+    ALERT_NEW_INDIVIDUALS_ONLY,
+    ALERT_WEBHOOK_URL,
     CAPTURE_INTERVAL_SECONDS,
     EMBEDDING_THRESHOLD,
+    EVENT_RETENTION_DAYS,
     EVENT_CLIP_ENABLED,
     EVENT_CLIP_FRAME_INTERVAL_SECONDS,
     EVENT_CLIP_MAX_WIDTH,
@@ -25,8 +29,10 @@ from config import (
     EVENTS_VIDEO_DIR,
     LOG_FILE,
     LOG_LEVEL,
+    MAINTENANCE_INTERVAL_SECONDS,
     MAX_INDIVIDUALS,
     MESANGE_DIR,
+    CAPTURES_DIR,
     SAVE_BIRD_EVENTS_ONLY,
 )
 from database import DatabaseHandler
@@ -35,6 +41,13 @@ from features import FeatureExtractor
 from matching import IndividualMatcher
 from motion import MotionDetector
 from PIL import Image
+
+try:
+    from .alerts import AlertSender
+    from .maintenance import prune_old_files
+except ImportError:
+    from alerts import AlertSender
+    from maintenance import prune_old_files
 
 # Setup logging
 logging.basicConfig(
@@ -47,6 +60,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
 def main():
     logger.info("🐦 Pi5 Bird Feeder - Starting...")
     logger.info("Phase 1: Setup & Camera Capture")
@@ -58,7 +75,9 @@ def main():
     feature_extractor = FeatureExtractor()
     matcher = IndividualMatcher(threshold=EMBEDDING_THRESHOLD)
     motion_detector = MotionDetector()
+    alert_sender = AlertSender(ALERT_WEBHOOK_URL)
     previous_image_path = None
+    last_maintenance_at = 0.0
 
     camera.cleanup_staging()
     database.init_schema()
@@ -137,6 +156,7 @@ def main():
                             if detections:
                                 candidates = database.get_individual_embeddings()
                                 for det_idx, detection in enumerate(detections):
+                                    is_new_individual = False
                                     embedding = feature_extractor.extract(
                                         persisted_image_path,
                                         bbox=detection.bbox,
@@ -148,6 +168,7 @@ def main():
                                             individual_id = database.create_individual(embedding)
                                             candidates.append((individual_id, embedding))
                                             score = 1.0
+                                            is_new_individual = True
                                             logger.info("New individual created: #%d", individual_id)
                                         else:
                                             logger.warning(
@@ -189,9 +210,41 @@ def main():
                                         detection.confidence,
                                     )
 
+                                    should_alert = detection.confidence >= ALERT_MIN_CONFIDENCE
+                                    if ALERT_NEW_INDIVIDUALS_ONLY and not is_new_individual:
+                                        should_alert = False
+                                    if should_alert and alert_sender.enabled:
+                                        alert_sender.send(
+                                            title="bird_sighting",
+                                            payload={
+                                                "created_at": _utc_now().isoformat(timespec="seconds"),
+                                                "individual_id": individual_id,
+                                                "is_new_individual": is_new_individual,
+                                                "confidence": round(float(detection.confidence), 4),
+                                                "similarity": round(float(score), 4),
+                                                "image_path": persisted_image_path,
+                                                "crop_path": crop_path,
+                                                "motion_event_id": motion_event_id,
+                                            },
+                                        )
+
                             logger.info("Motion event saved: score=%.4f bird_detections=%d", motion_result.score, len(detections))
                 else:
                     logger.info("No significant motion: score=%.4f", motion_result.score)
+
+                now = time.time()
+                if MAINTENANCE_INTERVAL_SECONDS > 0 and (now - last_maintenance_at) >= MAINTENANCE_INTERVAL_SECONDS:
+                    removed_captures = prune_old_files(CAPTURES_DIR, "capture_*.jpg", EVENT_RETENTION_DAYS)
+                    removed_crops = prune_old_files(MESANGE_DIR, "*.jpg", EVENT_RETENTION_DAYS)
+                    removed_clips = prune_old_files(EVENTS_VIDEO_DIR, "*.gif", EVENT_RETENTION_DAYS)
+                    last_maintenance_at = now
+                    if removed_captures or removed_crops or removed_clips:
+                        logger.info(
+                            "Maintenance cleanup: captures=%d crops=%d clips=%d",
+                            removed_captures,
+                            removed_crops,
+                            removed_clips,
+                        )
 
                 if previous_image_path != image_path and Path(previous_image_path).parent.name == "staging":
                     try:

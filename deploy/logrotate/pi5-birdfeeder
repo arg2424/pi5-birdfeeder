@@ -1,0 +1,9 @@
+/home/arno/Documents/py/iot/pi5-birdfeeder/logs/*.log {
+    daily
+    rotate 14
+    missingok
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+}

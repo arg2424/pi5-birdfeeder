@@ -1,12 +1,14 @@
 """Serveur web simple pour visualiser les captures et détections."""
 from __future__ import annotations
 
+import csv
 import io
 import sqlite3
 import subprocess
 import sys
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
@@ -17,7 +19,21 @@ parent_dir = str(Path(__file__).parent.parent)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
-from config import BASE_DIR, DB_PATH, FLASK_DEBUG, FLASK_HOST, FLASK_PORT
+from config import (
+    ALERT_WEBHOOK_URL,
+    BASE_DIR,
+    DAILY_EXPORT_ENABLED,
+    DB_PATH,
+    EXPORTS_DIR,
+    FLASK_DEBUG,
+    FLASK_HOST,
+    FLASK_PORT,
+)
+
+try:
+    from .alerts import AlertSender
+except ImportError:
+    from alerts import AlertSender
 
 WEB_DIR = BASE_DIR / "web"
 MESANGE_DIR = BASE_DIR / "data" / "mesange"
@@ -31,6 +47,11 @@ MAIN_SERVICE_NAME = "pi5-birdfeeder-main.service"
 _camera_lock = threading.Lock()
 _camera_instance = None
 _camera_last_error = None
+_alert_sender = AlertSender(ALERT_WEBHOOK_URL)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 def _open_live_camera():
@@ -211,6 +232,31 @@ def events_page():
 @app.get("/api/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.get("/api/monitor")
+def monitor():
+    """Health + runtime monitoring for service checks and dashboards."""
+    camera = _get_camera_status()
+    rows = _fetch_rows(
+        """
+        SELECT created_at, motion_score, bird_detections
+        FROM motion_events
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    )
+    latest = dict(rows[0]) if rows else None
+
+    return jsonify(
+        {
+            "status": "ok",
+            "time": _utc_now().isoformat(timespec="seconds"),
+            "camera": camera,
+            "detection_service_active": _service_is_active(MAIN_SERVICE_NAME),
+            "latest_event": latest,
+        }
+    )
 
 
 @app.get("/api/camera/status")
@@ -400,8 +446,28 @@ def sightings():
     limit = int(request.args.get("limit", "30"))
     limit = max(1, min(limit, 200))
 
+    individual_id = request.args.get("individual_id")
+    min_confidence = float(request.args.get("min_confidence", "0"))
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+
+    filters = ["s.confidence >= ?"]
+    params: list[object] = [min_confidence]
+
+    if individual_id not in (None, ""):
+        filters.append("s.individual_id = ?")
+        params.append(int(individual_id))
+    if date_from:
+        filters.append("s.created_at >= ?")
+        params.append(date_from)
+    if date_to:
+        filters.append("s.created_at <= ?")
+        params.append(date_to)
+
+    where_clause = " AND ".join(filters)
+
     rows = _fetch_rows(
-        """
+        f"""
         SELECT
             s.id,
             s.created_at,
@@ -415,10 +481,11 @@ def sightings():
             i.sightings_count
         FROM sightings s
         JOIN individuals i ON i.id = s.individual_id
+        WHERE {where_clause}
         ORDER BY s.id DESC
         LIMIT ?
         """,
-        (limit,),
+        (*params, limit),
     )
 
     data = []
@@ -444,6 +511,122 @@ def stats():
         """
     )
     return jsonify(dict(rows[0]))
+
+
+@app.get("/api/stats/timeline")
+def stats_timeline():
+    """Return hourly activity counters for the last N hours."""
+    hours = int(request.args.get("hours", "24"))
+    hours = max(1, min(hours, 24 * 14))
+
+    since = _utc_now() - timedelta(hours=hours)
+    rows = _fetch_rows(
+        """
+        SELECT
+            strftime('%Y-%m-%dT%H:00:00', created_at) AS bucket,
+            COUNT(*) AS motion_events,
+            SUM(CASE WHEN bird_detections > 0 THEN 1 ELSE 0 END) AS bird_events
+        FROM motion_events
+        WHERE created_at >= ?
+        GROUP BY bucket
+        ORDER BY bucket ASC
+        """,
+        (since.isoformat(timespec="seconds"),),
+    )
+    return jsonify({"hours": hours, "items": [dict(r) for r in rows]})
+
+
+@app.get("/api/highlights")
+def highlights():
+    """Top sightings by confidence for quick review and sharing."""
+    limit = int(request.args.get("limit", "12"))
+    limit = max(1, min(limit, 100))
+
+    rows = _fetch_rows(
+        """
+        SELECT
+            s.id,
+            s.created_at,
+            s.confidence,
+            s.individual_id,
+            s.image_path,
+            s.crop_path,
+            i.sightings_count
+        FROM sightings s
+        JOIN individuals i ON i.id = s.individual_id
+        ORDER BY s.confidence DESC, s.id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    items = []
+    for row in rows:
+        item = dict(row)
+        item["image_url"] = _to_web_path(item["image_path"])
+        item["crop_url"] = _to_web_path(item["crop_path"]) if item.get("crop_path") else None
+        items.append(item)
+    return jsonify({"items": items, "limit": limit})
+
+
+@app.post("/api/alerts/test")
+def alerts_test():
+    """Send a test alert payload to the configured webhook."""
+    if not _alert_sender.enabled:
+        return jsonify({"ok": False, "error": "ALERT_WEBHOOK_URL is not configured"}), 400
+
+    sent = _alert_sender.send(
+        "test_alert",
+        {
+            "created_at": _utc_now().isoformat(timespec="seconds"),
+            "message": "pi5-birdfeeder test alert",
+        },
+    )
+    if not sent:
+        return jsonify({"ok": False, "error": "failed to deliver alert"}), 502
+    return jsonify({"ok": True})
+
+
+@app.post("/api/export/daily")
+def export_daily_stats():
+    """Export daily CSV summary for reporting/backup workflows."""
+    if not DAILY_EXPORT_ENABLED:
+        return jsonify({"ok": False, "error": "DAILY_EXPORT_ENABLED=false"}), 400
+
+    days = int(request.args.get("days", "7"))
+    days = max(1, min(days, 90))
+
+    since = _utc_now() - timedelta(days=days)
+    rows = _fetch_rows(
+        """
+        SELECT
+            substr(created_at, 1, 10) AS day,
+            COUNT(*) AS motion_events,
+            SUM(CASE WHEN bird_detections > 0 THEN 1 ELSE 0 END) AS bird_events
+        FROM motion_events
+        WHERE created_at >= ?
+        GROUP BY day
+        ORDER BY day ASC
+        """,
+        (since.isoformat(timespec="seconds"),),
+    )
+
+    filename = f"daily_summary_{_utc_now().strftime('%Y%m%d_%H%M%S')}.csv"
+    csv_path = EXPORTS_DIR / filename
+    with csv_path.open("w", newline="", encoding="utf-8") as out:
+        writer = csv.writer(out)
+        writer.writerow(["day", "motion_events", "bird_events"])
+        for row in rows:
+            d = dict(row)
+            writer.writerow([d["day"], d["motion_events"], d["bird_events"]])
+
+    return jsonify(
+        {
+            "ok": True,
+            "file": str(csv_path),
+            "url": _to_web_path(str(csv_path)),
+            "rows": len(rows),
+        }
+    )
 
 
 @app.get("/media/<path:relpath>")

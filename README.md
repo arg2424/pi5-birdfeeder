@@ -56,9 +56,10 @@ Capture réelle obtenue avec la caméra IMX219 branchée sur le port CSI0 du Ras
 - [ ] Filtre "sauvegarder uniquement les events oiseaux"
 
 ### Phase 5: Autonomie & Production 🔋 À FAIRE
-- [ ] Nettoyage automatique des captures anciennes (logrotate-style)
-- [ ] Filtre anti-vent / cooldown post-event
-- [ ] Mode strict : `SAVE_BIRD_EVENTS_ONLY=true`
+- [ ] Nettoyage automatique des captures anciennes (rétention configurable)
+- [ ] Filtre anti-vent / robustesse mouvement (lissage + déclenchement consécutif)
+- [ ] Alertes webhook + export CSV journalier
+- [ ] Kit déploiement production (systemd + watchdog + logrotate)
 - [ ] Tests endurance (24h+)
 
 ---
@@ -120,10 +121,15 @@ python3 src/api.py
 |---------|----------|-------------|
 | GET | `/api/health` | Santé du service |
 | GET | `/api/stats` | Compteurs globaux (events, individuals, sightings, solos, identifiés, autres) |
+| GET | `/api/stats/timeline` | Activité horaire (events vs bird events) |
 | GET | `/api/latest` | Dernière capture |
 | GET | `/api/sightings` | Liste des passages |
+| GET | `/api/highlights` | Top détections par confiance |
+| GET | `/api/monitor` | Diagnostic runtime (health + caméra + dernier event) |
 | GET | `/api/events` | Galerie événements motion (paginée) |
 | DELETE | `/api/events/<id>` | Supprimer un événement |
+| POST | `/api/alerts/test` | Envoyer une alerte webhook de test |
+| POST | `/api/export/daily` | Export CSV journalier des stats |
 | GET | `/api/camera/status` | État de la caméra / du service main |
 | GET | `/api/camera/stream` | Flux MJPEG live |
 | GET | `/api/mode` | Mode actuel (detection / cadrage) |
@@ -232,6 +238,37 @@ LOG_LEVEL=INFO
 | **v0.5** | Phase 3: Reconnaissance individuelle | ⏳ En cours |
 | **v1.0** | Phase 4: Web Dashboard complet | ⏳ En cours |
 | **v1.1** | Phase 5: Autonomie & Production | 🔜 À faire |
+
+---
+
+## 📦 Release Management
+
+- Changelog: `CHANGELOG.md`
+- Checklist release: `docs/RELEASE_CHECKLIST.md`
+- Notes release candidate v0.1.0: `docs/releases/v0.1.0.md`
+
+---
+
+## 🧰 Déploiement Production (fichiers prêts)
+
+Le repo contient un kit de déploiement:
+
+- `deploy/systemd/pi5-birdfeeder-main.service`
+- `deploy/systemd/pi5-birdfeeder-api.service`
+- `deploy/systemd/pi5-birdfeeder-watchdog.service`
+- `deploy/systemd/pi5-birdfeeder-watchdog.timer`
+- `deploy/logrotate/pi5-birdfeeder`
+
+Installation type:
+
+```bash
+sudo cp deploy/systemd/*.service /etc/systemd/system/
+sudo cp deploy/systemd/*.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now pi5-birdfeeder-main.service pi5-birdfeeder-api.service pi5-birdfeeder-watchdog.timer
+
+sudo cp deploy/logrotate/pi5-birdfeeder /etc/logrotate.d/pi5-birdfeeder
+```
 
 ---
 

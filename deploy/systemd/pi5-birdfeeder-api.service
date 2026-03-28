@@ -1,0 +1,18 @@
+[Unit]
+Description=Pi5 Bird Feeder API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=arno
+WorkingDirectory=/home/arno/Documents/py/iot/pi5-birdfeeder
+EnvironmentFile=/home/arno/Documents/py/iot/pi5-birdfeeder/.env
+ExecStart=/home/arno/Documents/py/iot/.venv/bin/python src/api.py
+Restart=always
+RestartSec=3
+StartLimitIntervalSec=120
+StartLimitBurst=20
+
+[Install]
+WantedBy=multi-user.target

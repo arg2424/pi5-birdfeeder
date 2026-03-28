@@ -51,11 +51,45 @@
           </div>
           <div id="camera-status-text" class="status-text">Diagnostic en cours...</div>
         </div>
+        <div class="status-box action-stack">
+          <button id="btn-test-alert" class="action-btn">Tester alerte webhook</button>
+          <button id="btn-export" class="action-btn">Exporter stats CSV (7j)</button>
+          <div id="action-feedback" class="status-text">Actions smart prêtes.</div>
+        </div>
       </section>
 
       <section class="panel">
         <h2>Dernières détections</h2>
+        <div class="filters-row">
+          <label>
+            Individu
+            <input id="filter-individual" type="number" min="1" placeholder="Tous" />
+          </label>
+          <label>
+            Confiance min
+            <input id="filter-confidence" type="number" min="0" max="1" step="0.01" value="0" />
+          </label>
+          <label>
+            Du
+            <input id="filter-from" type="date" />
+          </label>
+          <label>
+            Au
+            <input id="filter-to" type="date" />
+          </label>
+          <button id="btn-apply-filters" class="action-btn">Filtrer</button>
+        </div>
         <div id="sightings" class="sightings"></div>
+      </section>
+
+      <section class="panel panel-wide">
+        <h2>Activité horaire (24h)</h2>
+        <div id="timeline" class="timeline"></div>
+      </section>
+
+      <section class="panel panel-wide">
+        <h2>Highlights (top confiance)</h2>
+        <div id="highlights" class="sightings"></div>
       </section>
     </main>
 

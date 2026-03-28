@@ -4,7 +4,7 @@ Module base de données SQLite - Phase 1.
 import logging
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 parent_dir = str(Path(__file__).parent.parent)
@@ -14,6 +14,10 @@ if parent_dir not in sys.path:
 from config import DB_PATH
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 class DatabaseHandler:
     """Gestionnaire de base de données SQLite."""
@@ -100,7 +104,7 @@ class DatabaseHandler:
                 ) VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    datetime.utcnow().isoformat(timespec="seconds"),
+                    _utc_now_iso(),
                     image_path,
                     clip_path,
                     motion_score,
@@ -140,7 +144,7 @@ class DatabaseHandler:
 
     def create_individual(self, embedding: list[float]) -> int:
         """Créer un nouvel individu avec embedding prototype."""
-        now = datetime.utcnow().isoformat(timespec="seconds")
+        now = _utc_now_iso()
         serialized = ",".join(f"{x:.8f}" for x in embedding)
         with sqlite3.connect(self.db_path) as connection:
             cursor = connection.execute(
@@ -166,7 +170,7 @@ class DatabaseHandler:
                 SET last_seen_at = ?, sightings_count = sightings_count + 1
                 WHERE id = ?
                 """,
-                (datetime.utcnow().isoformat(timespec="seconds"), individual_id),
+                (_utc_now_iso(), individual_id),
             )
             connection.commit()
 
@@ -200,7 +204,7 @@ class DatabaseHandler:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    datetime.utcnow().isoformat(timespec="seconds"),
+                    _utc_now_iso(),
                     image_path,
                     crop_path,
                     individual_id,

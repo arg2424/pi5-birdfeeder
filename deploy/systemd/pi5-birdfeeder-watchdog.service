@@ -1,0 +1,9 @@
+[Unit]
+Description=Pi5 Bird Feeder Watchdog Probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/arno/Documents/py/iot/pi5-birdfeeder
+ExecStart=/bin/bash -lc 'set -euo pipefail; URL="http://127.0.0.1:5000/api/monitor"; if ! curl -fsS --max-time 5 "$URL" >/dev/null; then systemctl restart pi5-birdfeeder-api.service pi5-birdfeeder-main.service; fi'

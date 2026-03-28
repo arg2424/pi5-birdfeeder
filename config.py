@@ -38,6 +38,8 @@ CAPTURE_INTERVAL_SECONDS = float(os.getenv("CAPTURE_INTERVAL_SECONDS", "60"))
 MOTION_SCORE_THRESHOLD = float(os.getenv("MOTION_SCORE_THRESHOLD", "0.02"))
 MOTION_RESIZE_WIDTH = int(os.getenv("MOTION_RESIZE_WIDTH", "320"))
 MOTION_RESIZE_HEIGHT = int(os.getenv("MOTION_RESIZE_HEIGHT", "180"))
+MOTION_SCORE_SMOOTHING = float(os.getenv("MOTION_SCORE_SMOOTHING", "0.55"))
+MOTION_ARM_CONSECUTIVE = int(os.getenv("MOTION_ARM_CONSECUTIVE", "2"))
 
 # ===== EVENT FILTERING =====
 # Durée minimale (secondes) entre deux événements enregistrés. 0 = désactivé.
@@ -50,6 +52,18 @@ EVENT_CLIP_ENABLED = os.getenv("EVENT_CLIP_ENABLED", "true").lower() == "true"
 EVENT_CLIP_POST_FRAMES = int(os.getenv("EVENT_CLIP_POST_FRAMES", "6"))
 EVENT_CLIP_FRAME_INTERVAL_SECONDS = float(os.getenv("EVENT_CLIP_FRAME_INTERVAL_SECONDS", "0.2"))
 EVENT_CLIP_MAX_WIDTH = int(os.getenv("EVENT_CLIP_MAX_WIDTH", "960"))
+
+# ===== MAINTENANCE =====
+EVENT_RETENTION_DAYS = int(os.getenv("EVENT_RETENTION_DAYS", "14"))
+MAINTENANCE_INTERVAL_SECONDS = float(os.getenv("MAINTENANCE_INTERVAL_SECONDS", "900"))
+
+# ===== SMART FEATURES =====
+ALERT_WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL", "").strip()
+ALERT_MIN_CONFIDENCE = float(os.getenv("ALERT_MIN_CONFIDENCE", "0.78"))
+ALERT_NEW_INDIVIDUALS_ONLY = os.getenv("ALERT_NEW_INDIVIDUALS_ONLY", "false").lower() == "true"
+DAILY_EXPORT_ENABLED = os.getenv("DAILY_EXPORT_ENABLED", "true").lower() == "true"
+EXPORTS_DIR = DATA_DIR / "exports"
+EXPORTS_DIR.mkdir(exist_ok=True)
 
 # ===== DETECTION =====
 YOLO_CONFIDENCE = float(os.getenv("YOLO_CONFIDENCE", "0.5"))
