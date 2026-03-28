@@ -20,6 +20,13 @@
     <main class="layout live-layout">
       <section class="panel live-panel">
         <h2>Apercu direct</h2>
+        <div class="status-box">
+          <div class="status-head">
+            <strong>Status camera</strong>
+            <span id="live-camera-status-pill" class="status-pill status-warn">Checking...</span>
+          </div>
+          <div id="live-camera-status-text" class="status-text">Diagnostic en cours...</div>
+        </div>
         <div class="live-wrap">
           <img id="live-stream" src="/api/camera/stream" alt="Flux camera live" />
         </div>
@@ -29,5 +36,41 @@
         </p>
       </section>
     </main>
+
+    <script>
+      function renderStatus(data) {
+        const pill = document.getElementById('live-camera-status-pill');
+        const text = document.getElementById('live-camera-status-text');
+        if (data.available) {
+          pill.textContent = 'OK';
+          pill.className = 'status-pill status-ok';
+        } else if (data.detected) {
+          pill.textContent = 'BUSY';
+          pill.className = 'status-pill status-warn';
+        } else {
+          pill.textContent = 'KO';
+          pill.className = 'status-pill status-bad';
+        }
+        text.textContent = `${data.message || 'no detail'} | detected=${data.detected} | stream_active=${data.stream_active}`;
+      }
+
+      async function refreshStatus() {
+        try {
+          const res = await fetch('/api/camera/status');
+          const data = await res.json();
+          renderStatus(data);
+        } catch (err) {
+          renderStatus({
+            available: false,
+            detected: false,
+            stream_active: false,
+            message: `status fetch failed: ${err}`,
+          });
+        }
+      }
+
+      refreshStatus();
+      setInterval(refreshStatus, 3000);
+    </script>
   </body>
 </html>

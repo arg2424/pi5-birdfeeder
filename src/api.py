@@ -24,18 +24,21 @@ app = Flask(__name__, static_folder=str(WEB_DIR), static_url_path="/web")
 
 _camera_lock = threading.Lock()
 _camera_instance = None
+_camera_last_error = None
 
 
 def _open_live_camera():
     """Initialise une caméra dédiée au flux live (si disponible)."""
     global _camera_instance
+    global _camera_last_error
     with _camera_lock:
         if _camera_instance is not None:
             return _camera_instance
 
         try:
             from picamera2 import Picamera2
-        except Exception:
+        except Exception as exc:
+            _camera_last_error = f"picamera2 import failed: {exc}"
             return None
 
         try:
@@ -44,9 +47,55 @@ def _open_live_camera():
             cam.configure(config)
             cam.start()
             _camera_instance = cam
+            _camera_last_error = None
             return _camera_instance
-        except Exception:
+        except Exception as exc:
+            _camera_last_error = str(exc)
             return None
+
+
+def _get_camera_status() -> dict:
+    """Retourne un diagnostic exploitable dans l'interface web."""
+    status = {
+        "detected": False,
+        "available": False,
+        "stream_active": _camera_instance is not None,
+        "camera_count": 0,
+        "message": "unknown",
+    }
+
+    try:
+        from picamera2 import Picamera2
+    except Exception as exc:
+        status["message"] = f"picamera2 import failed: {exc}"
+        return status
+
+    try:
+        infos = Picamera2.global_camera_info()
+    except Exception as exc:
+        status["message"] = f"camera query failed: {exc}"
+        return status
+
+    status["camera_count"] = len(infos)
+    if not infos:
+        status["message"] = "no camera detected"
+        return status
+
+    status["detected"] = True
+    if _camera_instance is not None:
+        status["available"] = True
+        status["message"] = "camera in use by live stream"
+        return status
+
+    try:
+        probe = Picamera2()
+        probe.close()
+        status["available"] = True
+        status["message"] = "camera available"
+    except Exception as exc:
+        status["message"] = f"camera busy or unavailable: {exc}"
+
+    return status
 
 
 def _mjpeg_generator():
@@ -100,6 +149,11 @@ def live_camera_page():
 @app.get("/api/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.get("/api/camera/status")
+def camera_status():
+    return jsonify(_get_camera_status())
 
 
 @app.get("/api/latest")
@@ -182,7 +236,11 @@ def media(relpath: str):
 def camera_stream():
     cam = _open_live_camera()
     if cam is None:
-        return jsonify({"error": "camera unavailable"}), 503
+        status = _get_camera_status()
+        if _camera_last_error:
+            status["message"] = _camera_last_error
+        status["error"] = "camera unavailable"
+        return jsonify(status), 503
 
     return Response(
         _mjpeg_generator(),

@@ -103,6 +103,54 @@ body {
 }
 .stats label { color: var(--muted); font-size: 13px; }
 
+.status-box {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #f8f4eb;
+}
+
+.status-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-ok {
+  background: #cdeede;
+  color: #0f5132;
+}
+
+.status-warn {
+  background: #fde8b8;
+  color: #7a4a00;
+}
+
+.status-bad {
+  background: #f8cfd0;
+  color: #6b1416;
+}
+
+.status-text {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
 .sightings {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

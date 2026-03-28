@@ -6,6 +6,42 @@ async function loadStats() {
   document.getElementById('stat-individuals').textContent = data.individuals;
 }
 
+function renderCameraStatus(data) {
+  const pill = document.getElementById('camera-status-pill');
+  const text = document.getElementById('camera-status-text');
+  if (!pill || !text) {
+    return;
+  }
+
+  if (data.available) {
+    pill.textContent = 'OK';
+    pill.className = 'status-pill status-ok';
+  } else if (data.detected) {
+    pill.textContent = 'BUSY';
+    pill.className = 'status-pill status-warn';
+  } else {
+    pill.textContent = 'KO';
+    pill.className = 'status-pill status-bad';
+  }
+
+  text.textContent = `${data.message || 'no detail'} | detected=${data.detected} | stream_active=${data.stream_active}`;
+}
+
+async function loadCameraStatus() {
+  try {
+    const res = await fetch('/api/camera/status');
+    const data = await res.json();
+    renderCameraStatus(data);
+  } catch (err) {
+    renderCameraStatus({
+      available: false,
+      detected: false,
+      stream_active: false,
+      message: `status fetch failed: ${err}`,
+    });
+  }
+}
+
 async function loadLatest() {
   const res = await fetch('/api/latest');
   const data = await res.json();
@@ -45,7 +81,7 @@ async function loadSightings() {
 }
 
 async function refresh() {
-  await Promise.all([loadStats(), loadLatest(), loadSightings()]);
+  await Promise.all([loadStats(), loadLatest(), loadSightings(), loadCameraStatus()]);
 }
 
 refresh();
