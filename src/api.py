@@ -47,7 +47,8 @@ def _open_live_camera():
 
         try:
             cam = Picamera2()
-            config = cam.create_video_configuration(main={"size": (1280, 720)})
+            # Use a still configuration for better compatibility with RP1/libcamera state.
+            config = cam.create_still_configuration(main={"size": (1920, 1080)})
             cam.configure(config)
             cam.start()
             _camera_instance = cam
@@ -104,10 +105,13 @@ def _service_is_active(service_name: str) -> bool:
 
 def _get_camera_status() -> dict:
     """Retourne un diagnostic exploitable dans l'interface web."""
+    detection_active = _service_is_active(MAIN_SERVICE_NAME)
+
     status = {
         "detected": False,
         "available": False,
         "stream_active": _camera_instance is not None,
+        "detection_active": detection_active,
         "camera_count": 0,
         "message": "unknown",
     }
@@ -135,13 +139,12 @@ def _get_camera_status() -> dict:
         status["message"] = "camera in use by live stream"
         return status
 
-    try:
-        probe = Picamera2()
-        probe.close()
+    if detection_active:
+        status["available"] = False
+        status["message"] = "camera used by detection service"
+    else:
         status["available"] = True
         status["message"] = "camera available"
-    except Exception as exc:
-        status["message"] = f"camera busy or unavailable: {exc}"
 
     return status
 
