@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import sqlite3
+import subprocess
 import sys
 import threading
 import time
@@ -23,6 +24,7 @@ MESANGE_DIR = BASE_DIR / "data" / "mesange"
 MESANGE_DIR.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__, static_folder=str(WEB_DIR), static_url_path="/web")
+MAIN_SERVICE_NAME = "pi5-birdfeeder-main.service"
 
 _camera_lock = threading.Lock()
 _camera_instance = None
@@ -54,6 +56,50 @@ def _open_live_camera():
         except Exception as exc:
             _camera_last_error = str(exc)
             return None
+
+
+def _close_live_camera() -> None:
+    """Ferme la caméra live si ouverte par le serveur API."""
+    global _camera_instance
+    with _camera_lock:
+        if _camera_instance is None:
+            return
+        try:
+            _camera_instance.stop()
+        except Exception:
+            pass
+        try:
+            _camera_instance.close()
+        except Exception:
+            pass
+        _camera_instance = None
+
+
+def _run_systemctl(action: str, service_name: str) -> tuple[bool, str]:
+    """Exécute systemctl via sudo -n pour piloter les services depuis l'API."""
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "systemctl", action, service_name],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception as exc:
+        return False, str(exc)
+
+    ok = result.returncode == 0
+    message = (result.stdout or result.stderr or "").strip()
+    return ok, message
+
+
+def _service_is_active(service_name: str) -> bool:
+    result = subprocess.run(
+        ["systemctl", "is-active", service_name],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "active"
 
 
 def _get_camera_status() -> dict:
@@ -167,6 +213,39 @@ def camera_status():
     return jsonify(_get_camera_status())
 
 
+@app.get("/api/mode")
+def mode_status():
+    """Expose l'état du mode cadrage (détection stoppée)."""
+    detection_active = _service_is_active(MAIN_SERVICE_NAME)
+    return jsonify(
+        {
+            "focus_mode": not detection_active,
+            "detection_service_active": detection_active,
+            "service": MAIN_SERVICE_NAME,
+        }
+    )
+
+
+@app.post("/api/mode")
+def mode_set():
+    """Active/désactive le mode cadrage en stoppant/redémarrant la détection."""
+    payload = request.get_json(silent=True) or {}
+    focus_mode = bool(payload.get("focus_mode", False))
+
+    if focus_mode:
+        ok, msg = _run_systemctl("stop", MAIN_SERVICE_NAME)
+        if not ok:
+            return jsonify({"error": "failed to stop detection service", "details": msg}), 500
+        return jsonify({"focus_mode": True, "detection_service_active": False, "message": msg})
+
+    # Reprise détection: libérer d'abord la caméra potentiellement tenue par le live stream.
+    _close_live_camera()
+    ok, msg = _run_systemctl("start", MAIN_SERVICE_NAME)
+    if not ok:
+        return jsonify({"error": "failed to start detection service", "details": msg}), 500
+    return jsonify({"focus_mode": False, "detection_service_active": True, "message": msg})
+
+
 @app.get("/api/mesange")
 def mesange_list():
     """Liste des photos de mésanges sauvegardées dans data/mesange/."""
@@ -205,7 +284,6 @@ def mesange_delete(filename: str):
     return jsonify({"deleted": filename})
 
 
-@app.post("/api/admin/reset")
 @app.get("/api/events")
 def events_list():
     """Liste paginée des motion events avec image et nb détections."""
@@ -258,6 +336,9 @@ def event_delete(event_id: int):
         pass
 
     return jsonify({"deleted": event_id})
+
+
+@app.post("/api/admin/reset")
 def admin_reset():
     """Remet la DB à zéro et vide captures/ et mesange/."""
     import shutil

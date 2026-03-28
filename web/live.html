@@ -20,6 +20,11 @@
     <main class="layout live-layout">
       <section class="panel live-panel">
         <h2>Apercu direct</h2>
+        <div class="focus-controls">
+          <button id="btn-focus-on" class="action-btn">Activer mode cadrage</button>
+          <button id="btn-focus-off" class="action-btn">Reprendre detection</button>
+          <span id="focus-mode-label" class="focus-label">Mode: checking...</span>
+        </div>
         <div class="status-box">
           <div class="status-head">
             <strong>Status camera</strong>
@@ -54,6 +59,49 @@
         text.textContent = `${data.message || 'no detail'} | detected=${data.detected} | stream_active=${data.stream_active}`;
       }
 
+      function renderMode(data) {
+        const label = document.getElementById('focus-mode-label');
+        const onBtn = document.getElementById('btn-focus-on');
+        const offBtn = document.getElementById('btn-focus-off');
+        const focus = !!data.focus_mode;
+        label.textContent = focus ? 'Mode: cadrage (detection stoppee)' : 'Mode: detection active';
+        onBtn.disabled = focus;
+        offBtn.disabled = !focus;
+      }
+
+      async function refreshMode() {
+        try {
+          const res = await fetch('/api/mode');
+          const data = await res.json();
+          renderMode(data);
+        } catch (err) {
+          const label = document.getElementById('focus-mode-label');
+          label.textContent = `Mode: erreur (${err})`;
+        }
+      }
+
+      async function setMode(focusMode) {
+        const onBtn = document.getElementById('btn-focus-on');
+        const offBtn = document.getElementById('btn-focus-off');
+        onBtn.disabled = true;
+        offBtn.disabled = true;
+        try {
+          const res = await fetch('/api/mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ focus_mode: focusMode }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            alert(`Erreur changement de mode: ${data.details || res.status}`);
+          }
+        } catch (err) {
+          alert(`Erreur changement de mode: ${err}`);
+        } finally {
+          await Promise.all([refreshMode(), refreshStatus()]);
+        }
+      }
+
       async function refreshStatus() {
         try {
           const res = await fetch('/api/camera/status');
@@ -69,8 +117,15 @@
         }
       }
 
+      document.getElementById('btn-focus-on').addEventListener('click', () => setMode(true));
+      document.getElementById('btn-focus-off').addEventListener('click', () => setMode(false));
+
       refreshStatus();
-      setInterval(refreshStatus, 3000);
+      refreshMode();
+      setInterval(() => {
+        refreshStatus();
+        refreshMode();
+      }, 3000);
     </script>
   </body>
 </html>
