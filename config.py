@@ -39,6 +39,12 @@ MOTION_SCORE_THRESHOLD = float(os.getenv("MOTION_SCORE_THRESHOLD", "0.02"))
 MOTION_RESIZE_WIDTH = int(os.getenv("MOTION_RESIZE_WIDTH", "320"))
 MOTION_RESIZE_HEIGHT = int(os.getenv("MOTION_RESIZE_HEIGHT", "180"))
 
+# ===== EVENT FILTERING =====
+# Durée minimale (secondes) entre deux événements enregistrés. 0 = désactivé.
+EVENT_COOLDOWN_SECONDS = float(os.getenv("EVENT_COOLDOWN_SECONDS", "0"))
+# Si True, ne sauvegarder en DB que les events où YOLO détecte au moins un oiseau.
+SAVE_BIRD_EVENTS_ONLY = os.getenv("SAVE_BIRD_EVENTS_ONLY", "false").lower() == "true"
+
 # ===== EVENT CLIPS =====
 EVENT_CLIP_ENABLED = os.getenv("EVENT_CLIP_ENABLED", "true").lower() == "true"
 EVENT_CLIP_POST_FRAMES = int(os.getenv("EVENT_CLIP_POST_FRAMES", "6"))

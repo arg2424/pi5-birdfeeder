@@ -21,11 +21,13 @@ from config import (
     EVENT_CLIP_FRAME_INTERVAL_SECONDS,
     EVENT_CLIP_MAX_WIDTH,
     EVENT_CLIP_POST_FRAMES,
+    EVENT_COOLDOWN_SECONDS,
     EVENTS_VIDEO_DIR,
     LOG_FILE,
     LOG_LEVEL,
     MAX_INDIVIDUALS,
     MESANGE_DIR,
+    SAVE_BIRD_EVENTS_ONLY,
 )
 from database import DatabaseHandler
 from detection import BirdDetector
@@ -62,6 +64,8 @@ def main():
     database.init_schema()
     print("✅ Camera loop started. Ctrl+C pour arrêter.")
 
+    last_event_time: float = 0.0
+
     try:
         while True:
             image_path = camera.capture_staging_image()
@@ -70,111 +74,122 @@ def main():
             if previous_image_path is not None:
                 motion_result = motion_detector.compare(previous_image_path, image_path)
                 if motion_result.detected:
-                    persisted_image_path = camera.persist_image(image_path)
-                    detections = bird_detector.detect(persisted_image_path)
-                    motion_event_id = database.record_motion_event(
-                        image_path=persisted_image_path,
-                        motion_score=motion_result.score,
-                        threshold=motion_result.threshold,
-                        bird_detections=len(detections),
-                    )
+                    now = time.time()
+                    if EVENT_COOLDOWN_SECONDS > 0 and (now - last_event_time) < EVENT_COOLDOWN_SECONDS:
+                        remaining = EVENT_COOLDOWN_SECONDS - (now - last_event_time)
+                        logger.info("Motion suppressed by cooldown (%.1fs remaining)", remaining)
+                    else:
+                        last_event_time = now
+                        persisted_image_path = camera.persist_image(image_path)
+                        detections = bird_detector.detect(persisted_image_path)
 
-                    # Clip court (GIF) pour revue visuelle des événements.
-                    if EVENT_CLIP_ENABLED:
-                        clip_staging_paths = []
-                        try:
-                            for _ in range(EVENT_CLIP_POST_FRAMES):
-                                time.sleep(EVENT_CLIP_FRAME_INTERVAL_SECONDS)
-                                clip_staging_paths.append(camera.capture_staging_image())
-
-                            frame_paths = [persisted_image_path, *clip_staging_paths]
-                            frames = []
-                            for frame_path in frame_paths:
-                                with Image.open(frame_path) as img_in:
-                                    frame = img_in.convert("RGB")
-                                    if EVENT_CLIP_MAX_WIDTH > 0 and frame.width > EVENT_CLIP_MAX_WIDTH:
-                                        new_h = int(frame.height * EVENT_CLIP_MAX_WIDTH / frame.width)
-                                        frame = frame.resize((EVENT_CLIP_MAX_WIDTH, new_h))
-                                    frames.append(frame)
-
-                            if frames:
-                                clip_filename = f"event_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{motion_event_id}.gif"
-                                clip_dest = EVENTS_VIDEO_DIR / clip_filename
-                                duration_ms = max(40, int(EVENT_CLIP_FRAME_INTERVAL_SECONDS * 1000))
-                                frames[0].save(
-                                    str(clip_dest),
-                                    save_all=True,
-                                    append_images=frames[1:],
-                                    duration=duration_ms,
-                                    loop=0,
-                                )
-                                database.set_motion_event_clip_path(motion_event_id, str(clip_dest))
-                                logger.info("Event clip saved: %s", clip_dest)
-                        except Exception as exc:
-                            logger.warning("Event clip save failed: %s", exc)
-                        finally:
-                            for clip_staging in clip_staging_paths:
-                                try:
-                                    Path(clip_staging).unlink(missing_ok=True)
-                                except Exception:
-                                    pass
-
-                    if detections:
-                        candidates = database.get_individual_embeddings()
-                        for det_idx, detection in enumerate(detections):
-                            embedding = feature_extractor.extract(
-                                persisted_image_path,
-                                bbox=detection.bbox,
-                            )
-                            match = matcher.match(embedding, candidates)
-
-                            if match is None:
-                                if len(candidates) < MAX_INDIVIDUALS:
-                                    individual_id = database.create_individual(embedding)
-                                    candidates.append((individual_id, embedding))
-                                    score = 1.0
-                                    logger.info("New individual created: #%d", individual_id)
-                                else:
-                                    logger.warning(
-                                        "Max individuals reached (%d), sighting ignored",
-                                        MAX_INDIVIDUALS,
-                                    )
-                                    continue
-                            else:
-                                individual_id, score = match
-                                database.update_individual_seen(individual_id)
-
-                            # --- Save crop to data/mesange/ ---
-                            crop_path = None
-                            try:
-                                img = Image.open(persisted_image_path)
-                                x1, y1, x2, y2 = detection.bbox
-                                crop = img.crop((x1, y1, x2, y2))
-                                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                crop_filename = f"mesange_{ts}_indiv{individual_id}_{det_idx}.jpg"
-                                crop_dest = MESANGE_DIR / crop_filename
-                                crop.save(str(crop_dest), format="JPEG", quality=90)
-                                crop_path = str(crop_dest)
-                                logger.info("Crop saved: %s", crop_dest)
-                            except Exception as exc:
-                                logger.warning("Crop save failed: %s", exc)
-
-                            database.record_sighting(
+                        if SAVE_BIRD_EVENTS_ONLY and not detections:
+                            logger.info("No bird detected, event skipped (SAVE_BIRD_EVENTS_ONLY score=%.4f)", motion_result.score)
+                            Path(persisted_image_path).unlink(missing_ok=True)
+                        else:
+                            motion_event_id = database.record_motion_event(
                                 image_path=persisted_image_path,
-                                individual_id=individual_id,
-                                confidence=detection.confidence,
-                                bbox=detection.bbox,
-                                motion_event_id=motion_event_id,
-                                crop_path=crop_path,
-                            )
-                            logger.info(
-                                "Bird sighting linked to individual #%d (similarity=%.3f, conf=%.3f)",
-                                individual_id,
-                                score,
-                                detection.confidence,
+                                motion_score=motion_result.score,
+                                threshold=motion_result.threshold,
+                                bird_detections=len(detections),
                             )
 
-                    logger.info("Motion detected before bird detection: score=%.4f", motion_result.score)
+                            # Clip court (GIF) pour revue visuelle des événements.
+                            if EVENT_CLIP_ENABLED:
+                                clip_staging_paths = []
+                                try:
+                                    for _ in range(EVENT_CLIP_POST_FRAMES):
+                                        time.sleep(EVENT_CLIP_FRAME_INTERVAL_SECONDS)
+                                        clip_staging_paths.append(camera.capture_staging_image())
+
+                                    frame_paths = [persisted_image_path, *clip_staging_paths]
+                                    frames = []
+                                    for frame_path in frame_paths:
+                                        with Image.open(frame_path) as img_in:
+                                            frame = img_in.convert("RGB")
+                                            if EVENT_CLIP_MAX_WIDTH > 0 and frame.width > EVENT_CLIP_MAX_WIDTH:
+                                                new_h = int(frame.height * EVENT_CLIP_MAX_WIDTH / frame.width)
+                                                frame = frame.resize((EVENT_CLIP_MAX_WIDTH, new_h))
+                                            frames.append(frame)
+
+                                    if frames:
+                                        clip_filename = f"event_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{motion_event_id}.gif"
+                                        clip_dest = EVENTS_VIDEO_DIR / clip_filename
+                                        duration_ms = max(40, int(EVENT_CLIP_FRAME_INTERVAL_SECONDS * 1000))
+                                        frames[0].save(
+                                            str(clip_dest),
+                                            save_all=True,
+                                            append_images=frames[1:],
+                                            duration=duration_ms,
+                                            loop=0,
+                                        )
+                                        database.set_motion_event_clip_path(motion_event_id, str(clip_dest))
+                                        logger.info("Event clip saved: %s", clip_dest)
+                                except Exception as exc:
+                                    logger.warning("Event clip save failed: %s", exc)
+                                finally:
+                                    for clip_staging in clip_staging_paths:
+                                        try:
+                                            Path(clip_staging).unlink(missing_ok=True)
+                                        except Exception:
+                                            pass
+
+                            if detections:
+                                candidates = database.get_individual_embeddings()
+                                for det_idx, detection in enumerate(detections):
+                                    embedding = feature_extractor.extract(
+                                        persisted_image_path,
+                                        bbox=detection.bbox,
+                                    )
+                                    match = matcher.match(embedding, candidates)
+
+                                    if match is None:
+                                        if len(candidates) < MAX_INDIVIDUALS:
+                                            individual_id = database.create_individual(embedding)
+                                            candidates.append((individual_id, embedding))
+                                            score = 1.0
+                                            logger.info("New individual created: #%d", individual_id)
+                                        else:
+                                            logger.warning(
+                                                "Max individuals reached (%d), sighting ignored",
+                                                MAX_INDIVIDUALS,
+                                            )
+                                            continue
+                                    else:
+                                        individual_id, score = match
+                                        database.update_individual_seen(individual_id)
+
+                                    # --- Save crop to data/mesange/ ---
+                                    crop_path = None
+                                    try:
+                                        img = Image.open(persisted_image_path)
+                                        x1, y1, x2, y2 = detection.bbox
+                                        crop = img.crop((x1, y1, x2, y2))
+                                        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                        crop_filename = f"mesange_{ts}_indiv{individual_id}_{det_idx}.jpg"
+                                        crop_dest = MESANGE_DIR / crop_filename
+                                        crop.save(str(crop_dest), format="JPEG", quality=90)
+                                        crop_path = str(crop_dest)
+                                        logger.info("Crop saved: %s", crop_dest)
+                                    except Exception as exc:
+                                        logger.warning("Crop save failed: %s", exc)
+
+                                    database.record_sighting(
+                                        image_path=persisted_image_path,
+                                        individual_id=individual_id,
+                                        confidence=detection.confidence,
+                                        bbox=detection.bbox,
+                                        motion_event_id=motion_event_id,
+                                        crop_path=crop_path,
+                                    )
+                                    logger.info(
+                                        "Bird sighting linked to individual #%d (similarity=%.3f, conf=%.3f)",
+                                        individual_id,
+                                        score,
+                                        detection.confidence,
+                                    )
+
+                            logger.info("Motion event saved: score=%.4f bird_detections=%d", motion_result.score, len(detections))
                 else:
                     logger.info("No significant motion: score=%.4f", motion_result.score)
 
