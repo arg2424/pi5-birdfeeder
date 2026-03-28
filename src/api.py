@@ -38,12 +38,15 @@ def _open_live_camera():
         except Exception:
             return None
 
-        cam = Picamera2()
-        config = cam.create_video_configuration(main={"size": (1280, 720)})
-        cam.configure(config)
-        cam.start()
-        _camera_instance = cam
-        return _camera_instance
+        try:
+            cam = Picamera2()
+            config = cam.create_video_configuration(main={"size": (1280, 720)})
+            cam.configure(config)
+            cam.start()
+            _camera_instance = cam
+            return _camera_instance
+        except Exception:
+            return None
 
 
 def _mjpeg_generator():
