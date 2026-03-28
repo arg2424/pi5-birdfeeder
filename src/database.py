@@ -54,6 +54,7 @@ class DatabaseHandler:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     created_at TEXT NOT NULL,
                     image_path TEXT NOT NULL,
+                    crop_path TEXT,
                     individual_id INTEGER NOT NULL,
                     confidence REAL NOT NULL,
                     motion_event_id INTEGER,
@@ -156,6 +157,7 @@ class DatabaseHandler:
         confidence: float,
         bbox: tuple[int, int, int, int] | None,
         motion_event_id: int | None,
+        crop_path: str | None = None,
     ) -> int:
         """Enregistre une observation d'oiseau associée à un individu."""
         x1 = y1 = x2 = y2 = None
@@ -167,6 +169,7 @@ class DatabaseHandler:
                 INSERT INTO sightings (
                     created_at,
                     image_path,
+                    crop_path,
                     individual_id,
                     confidence,
                     motion_event_id,
@@ -174,11 +177,12 @@ class DatabaseHandler:
                     bbox_y1,
                     bbox_x2,
                     bbox_y2
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     datetime.utcnow().isoformat(timespec="seconds"),
                     image_path,
+                    crop_path,
                     individual_id,
                     confidence,
                     motion_event_id,
@@ -190,6 +194,16 @@ class DatabaseHandler:
             )
             connection.commit()
         return int(cursor.lastrowid)
+
+    def reset_all(self) -> None:
+        """Remet à zéro toutes les tables (conserve le schéma)."""
+        with sqlite3.connect(self.db_path) as connection:
+            connection.execute("DELETE FROM sightings")
+            connection.execute("DELETE FROM individuals")
+            connection.execute("DELETE FROM motion_events")
+            connection.execute("DELETE FROM sqlite_sequence WHERE name IN ('sightings','individuals','motion_events')")
+            connection.commit()
+        logger.info("Database reset: all tables cleared")
 
 if __name__ == "__main__":
     db = DatabaseHandler()

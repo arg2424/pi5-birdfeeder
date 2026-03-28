@@ -5,6 +5,7 @@ import logging
 import os
 import time
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Ajouter le répertoire parent au path pour importer config
@@ -13,12 +14,13 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 from camera import CameraHandler
-from config import CAPTURE_INTERVAL_SECONDS, EMBEDDING_THRESHOLD, LOG_FILE, LOG_LEVEL, MAX_INDIVIDUALS
+from config import CAPTURE_INTERVAL_SECONDS, EMBEDDING_THRESHOLD, LOG_FILE, LOG_LEVEL, MAX_INDIVIDUALS, MESANGE_DIR
 from database import DatabaseHandler
 from detection import BirdDetector
 from features import FeatureExtractor
 from matching import IndividualMatcher
 from motion import MotionDetector
+from PIL import Image
 
 # Setup logging
 logging.basicConfig(
@@ -67,7 +69,7 @@ def main():
 
                     if detections:
                         candidates = database.get_individual_embeddings()
-                        for detection in detections:
+                        for det_idx, detection in enumerate(detections):
                             embedding = feature_extractor.extract(
                                 persisted_image_path,
                                 bbox=detection.bbox,
@@ -90,12 +92,28 @@ def main():
                                 individual_id, score = match
                                 database.update_individual_seen(individual_id)
 
+                            # --- Save crop to data/mesange/ ---
+                            crop_path = None
+                            try:
+                                img = Image.open(persisted_image_path)
+                                x1, y1, x2, y2 = detection.bbox
+                                crop = img.crop((x1, y1, x2, y2))
+                                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                crop_filename = f"mesange_{ts}_indiv{individual_id}_{det_idx}.jpg"
+                                crop_dest = MESANGE_DIR / crop_filename
+                                crop.save(str(crop_dest), format="JPEG", quality=90)
+                                crop_path = str(crop_dest)
+                                logger.info("Crop saved: %s", crop_dest)
+                            except Exception as exc:
+                                logger.warning("Crop save failed: %s", exc)
+
                             database.record_sighting(
                                 image_path=persisted_image_path,
                                 individual_id=individual_id,
                                 confidence=detection.confidence,
                                 bbox=detection.bbox,
                                 motion_event_id=motion_event_id,
+                                crop_path=crop_path,
                             )
                             logger.info(
                                 "Bird sighting linked to individual #%d (similarity=%.3f, conf=%.3f)",

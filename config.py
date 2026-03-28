@@ -17,12 +17,15 @@ STAGING_DIR = DATA_DIR / "staging"
 MODELS_DIR = BASE_DIR / "models"
 LOGS_DIR = BASE_DIR / "logs"
 
+MESANGE_DIR = DATA_DIR / "mesange"
+
 # Créer dossiers s'ils n'existent pas
 DATA_DIR.mkdir(exist_ok=True)
 CAPTURES_DIR.mkdir(exist_ok=True)
 STAGING_DIR.mkdir(exist_ok=True)
 MODELS_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
+MESANGE_DIR.mkdir(exist_ok=True)
 
 # ===== CAMERA =====
 CAMERA_RESOLUTION = os.getenv("CAMERA_RESOLUTION", "3280x2464")

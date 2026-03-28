@@ -19,6 +19,8 @@ if parent_dir not in sys.path:
 from config import BASE_DIR, DB_PATH, FLASK_DEBUG, FLASK_HOST, FLASK_PORT
 
 WEB_DIR = BASE_DIR / "web"
+MESANGE_DIR = BASE_DIR / "data" / "mesange"
+MESANGE_DIR.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__, static_folder=str(WEB_DIR), static_url_path="/web")
 
@@ -146,6 +148,11 @@ def live_camera_page():
     return send_file(WEB_DIR / "live.html")
 
 
+@app.get("/mesange")
+def mesange_page():
+    return send_file(WEB_DIR / "mesange.html")
+
+
 @app.get("/api/health")
 def health():
     return jsonify({"status": "ok"})
@@ -154,6 +161,65 @@ def health():
 @app.get("/api/camera/status")
 def camera_status():
     return jsonify(_get_camera_status())
+
+
+@app.get("/api/mesange")
+def mesange_list():
+    """Liste des photos de mésanges sauvegardées dans data/mesange/."""
+    files = sorted(MESANGE_DIR.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)
+    items = []
+    for f in files:
+        stat = f.stat()
+        # Récupère les métadonnées depuis la DB si disponible
+        rows = _fetch_rows(
+            "SELECT individual_id, confidence, created_at FROM sightings WHERE crop_path = ? LIMIT 1",
+            (str(f),),
+        )
+        meta = dict(rows[0]) if rows else {}
+        items.append({
+            "filename": f.name,
+            "url": f"/media/data/mesange/{quote(f.name)}",
+            "size": stat.st_size,
+            "mtime": stat.st_mtime,
+            **meta,
+        })
+    return jsonify({"items": items, "total": len(items)})
+
+
+@app.delete("/api/mesange/<filename>")
+def mesange_delete(filename: str):
+    """Supprime une photo mésange par son nom de fichier."""
+    # n'autoriser que les noms sans séparateurs de chemin
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return jsonify({"error": "invalid filename"}), 400
+    file_path = (MESANGE_DIR / filename).resolve()
+    if not str(file_path).startswith(str(MESANGE_DIR.resolve())):
+        return jsonify({"error": "forbidden"}), 403
+    if not file_path.exists():
+        return jsonify({"error": "not found"}), 404
+    file_path.unlink()
+    return jsonify({"deleted": filename})
+
+
+@app.post("/api/admin/reset")
+def admin_reset():
+    """Remet la DB à zéro et vide captures/ et mesange/."""
+    import shutil
+    # Reset DB
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM sightings")
+        conn.execute("DELETE FROM individuals")
+        conn.execute("DELETE FROM motion_events")
+        conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('sightings','individuals','motion_events')")
+        conn.commit()
+    # Vider captures
+    captures_dir = BASE_DIR / "data" / "captures"
+    for f in captures_dir.glob("*.jpg"):
+        f.unlink(missing_ok=True)
+    # Vider mesange
+    for f in MESANGE_DIR.glob("*.jpg"):
+        f.unlink(missing_ok=True)
+    return jsonify({"reset": True})
 
 
 @app.get("/api/latest")

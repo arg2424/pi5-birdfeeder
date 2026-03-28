@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Pi5 Bird Feeder - Galerie mésanges</title>
+    <link rel="stylesheet" href="/web/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-main">
+        <div>
+          <h1>Galerie mésanges</h1>
+          <p id="gallery-count">Chargement...</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="action-btn danger-btn" id="btn-reset" onclick="confirmReset()">
+            Tout remettre à zéro
+          </button>
+          <a class="live-link back-link" href="/">Retour dashboard</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout live-layout">
+      <section class="panel live-panel">
+        <div id="gallery" class="mesange-grid"></div>
+        <p id="empty-msg" class="meta" style="display:none">
+          Aucune photo sauvegardée pour l'instant. Le pipeline doit détecter et matcher un oiseau pour en créer.
+        </p>
+      </section>
+    </main>
+
+    <script>
+      async function load() {
+        const res = await fetch('/api/mesange');
+        const data = await res.json();
+        const grid = document.getElementById('gallery');
+        const emptyMsg = document.getElementById('empty-msg');
+        const countEl = document.getElementById('gallery-count');
+
+        countEl.textContent = `${data.total} photo${data.total !== 1 ? 's' : ''} sauvegardée${data.total !== 1 ? 's' : ''}`;
+        grid.innerHTML = '';
+
+        if (!data.items.length) {
+          emptyMsg.style.display = '';
+          return;
+        }
+        emptyMsg.style.display = 'none';
+
+        for (const item of data.items) {
+          const card = document.createElement('article');
+          card.className = 'mesange-card';
+          card.id = `card-${item.filename}`;
+          const indiv = item.individual_id != null ? `Individu #${item.individual_id}` : 'Individu inconnu';
+          const conf = item.confidence != null ? ` | conf=${Number(item.confidence).toFixed(3)}` : '';
+          const date = item.created_at || '';
+          card.innerHTML = `
+            <div class="mesange-img-wrap">
+              <img src="${item.url}?t=${Date.now()}" alt="${item.filename}" loading="lazy" />
+            </div>
+            <div class="mesange-info">
+              <strong>${indiv}</strong>${conf}<br/>
+              <span class="msg">${date}</span>
+            </div>
+            <button class="delete-btn" onclick="deletePhoto('${item.filename}', this)">Supprimer</button>
+          `;
+          grid.appendChild(card);
+        }
+      }
+
+      async function deletePhoto(filename, btn) {
+        btn.disabled = true;
+        btn.textContent = '...';
+        const res = await fetch(`/api/mesange/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+        if (res.ok) {
+          const card = document.getElementById(`card-${filename}`);
+          card.classList.add('fade-out');
+          setTimeout(() => { card.remove(); load(); }, 400);
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Supprimer';
+          alert('Erreur lors de la suppression');
+        }
+      }
+
+      async function confirmReset() {
+        if (!confirm('Remettre TOUTES les stats à zéro et effacer toutes les photos (captures + mésanges) ?')) return;
+        const res = await fetch('/api/admin/reset', { method: 'POST' });
+        if (res.ok) {
+          alert('Remis à zéro.');
+          load();
+        } else {
+          alert('Erreur lors du reset.');
+        }
+      }
+
+      load();
+    </script>
+  </body>
+</html>
