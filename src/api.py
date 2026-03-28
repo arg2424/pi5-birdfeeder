@@ -437,7 +437,10 @@ def stats():
         SELECT
             (SELECT COUNT(*) FROM motion_events) AS motion_events,
             (SELECT COUNT(*) FROM sightings) AS sightings,
-            (SELECT COUNT(*) FROM individuals) AS individuals
+            (SELECT COUNT(*) FROM individuals) AS individuals,
+            (SELECT COUNT(*) FROM individuals WHERE sightings_count >= 2) AS individuals_identified,
+            (SELECT COUNT(*) FROM individuals WHERE sightings_count = 1) AS individuals_solo,
+            (SELECT COUNT(*) FROM motion_events WHERE COALESCE(bird_detections, 0) = 0) AS other_not_mesange
         """
     )
     return jsonify(dict(rows[0]))

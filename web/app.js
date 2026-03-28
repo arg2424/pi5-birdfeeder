@@ -4,6 +4,9 @@ async function loadStats() {
   document.getElementById('stat-motion').textContent = data.motion_events;
   document.getElementById('stat-sightings').textContent = data.sightings;
   document.getElementById('stat-individuals').textContent = data.individuals;
+  document.getElementById('stat-identified').textContent = data.individuals_identified ?? 0;
+  document.getElementById('stat-solo').textContent = data.individuals_solo ?? 0;
+  document.getElementById('stat-other').textContent = data.other_not_mesange ?? 0;
 }
 
 function renderCameraStatus(data) {
