@@ -22,6 +22,8 @@ from config import BASE_DIR, DB_PATH, FLASK_DEBUG, FLASK_HOST, FLASK_PORT
 WEB_DIR = BASE_DIR / "web"
 MESANGE_DIR = BASE_DIR / "data" / "mesange"
 MESANGE_DIR.mkdir(parents=True, exist_ok=True)
+EVENTS_VIDEO_DIR = BASE_DIR / "data" / "events_video"
+EVENTS_VIDEO_DIR.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__, static_folder=str(WEB_DIR), static_url_path="/web")
 MAIN_SERVICE_NAME = "pi5-birdfeeder-main.service"
@@ -297,7 +299,7 @@ def events_list():
 
     rows = _fetch_rows(
         """
-        SELECT id, created_at, image_path, motion_score, bird_detections
+        SELECT id, created_at, image_path, clip_path, motion_score, bird_detections
         FROM motion_events
         ORDER BY id DESC
         LIMIT ? OFFSET ?
@@ -311,6 +313,7 @@ def events_list():
     for r in rows:
         item = dict(r)
         item["image_url"] = _to_web_path(item["image_path"])
+        item["clip_url"] = _to_web_path(item["clip_path"]) if item.get("clip_path") else None
         items.append(item)
     return jsonify({"items": items, "total": total, "limit": limit, "offset": offset})
 
@@ -318,13 +321,14 @@ def events_list():
 def event_delete(event_id: int):
     """Supprime un motion event (DB + fichier image)."""
     rows = _fetch_rows(
-        "SELECT image_path FROM motion_events WHERE id = ? LIMIT 1",
+        "SELECT image_path, clip_path FROM motion_events WHERE id = ? LIMIT 1",
         (event_id,),
     )
     if not rows:
         return jsonify({"error": "not found"}), 404
 
     image_path = dict(rows[0])["image_path"]
+    clip_path = dict(rows[0]).get("clip_path")
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("DELETE FROM sightings WHERE motion_event_id = ?", (event_id,))
@@ -337,6 +341,14 @@ def event_delete(event_id: int):
             p.unlink()
     except Exception:
         pass
+
+    if clip_path:
+        try:
+            cp = Path(clip_path).resolve()
+            if str(cp).startswith(str(BASE_DIR.resolve())) and cp.exists():
+                cp.unlink()
+        except Exception:
+            pass
 
     return jsonify({"deleted": event_id})
 
@@ -358,6 +370,9 @@ def admin_reset():
         f.unlink(missing_ok=True)
     # Vider mesange
     for f in MESANGE_DIR.glob("*.jpg"):
+        f.unlink(missing_ok=True)
+    # Vider clips events
+    for f in EVENTS_VIDEO_DIR.glob("*.gif"):
         f.unlink(missing_ok=True)
     return jsonify({"reset": True})
 

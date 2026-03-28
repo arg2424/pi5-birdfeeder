@@ -14,7 +14,19 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 from camera import CameraHandler
-from config import CAPTURE_INTERVAL_SECONDS, EMBEDDING_THRESHOLD, LOG_FILE, LOG_LEVEL, MAX_INDIVIDUALS, MESANGE_DIR
+from config import (
+    CAPTURE_INTERVAL_SECONDS,
+    EMBEDDING_THRESHOLD,
+    EVENT_CLIP_ENABLED,
+    EVENT_CLIP_FRAME_INTERVAL_SECONDS,
+    EVENT_CLIP_MAX_WIDTH,
+    EVENT_CLIP_POST_FRAMES,
+    EVENTS_VIDEO_DIR,
+    LOG_FILE,
+    LOG_LEVEL,
+    MAX_INDIVIDUALS,
+    MESANGE_DIR,
+)
 from database import DatabaseHandler
 from detection import BirdDetector
 from features import FeatureExtractor
@@ -66,6 +78,46 @@ def main():
                         threshold=motion_result.threshold,
                         bird_detections=len(detections),
                     )
+
+                    # Clip court (GIF) pour revue visuelle des événements.
+                    if EVENT_CLIP_ENABLED:
+                        clip_staging_paths = []
+                        try:
+                            for _ in range(EVENT_CLIP_POST_FRAMES):
+                                time.sleep(EVENT_CLIP_FRAME_INTERVAL_SECONDS)
+                                clip_staging_paths.append(camera.capture_staging_image())
+
+                            frame_paths = [persisted_image_path, *clip_staging_paths]
+                            frames = []
+                            for frame_path in frame_paths:
+                                with Image.open(frame_path) as img_in:
+                                    frame = img_in.convert("RGB")
+                                    if EVENT_CLIP_MAX_WIDTH > 0 and frame.width > EVENT_CLIP_MAX_WIDTH:
+                                        new_h = int(frame.height * EVENT_CLIP_MAX_WIDTH / frame.width)
+                                        frame = frame.resize((EVENT_CLIP_MAX_WIDTH, new_h))
+                                    frames.append(frame)
+
+                            if frames:
+                                clip_filename = f"event_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{motion_event_id}.gif"
+                                clip_dest = EVENTS_VIDEO_DIR / clip_filename
+                                duration_ms = max(40, int(EVENT_CLIP_FRAME_INTERVAL_SECONDS * 1000))
+                                frames[0].save(
+                                    str(clip_dest),
+                                    save_all=True,
+                                    append_images=frames[1:],
+                                    duration=duration_ms,
+                                    loop=0,
+                                )
+                                database.set_motion_event_clip_path(motion_event_id, str(clip_dest))
+                                logger.info("Event clip saved: %s", clip_dest)
+                        except Exception as exc:
+                            logger.warning("Event clip save failed: %s", exc)
+                        finally:
+                            for clip_staging in clip_staging_paths:
+                                try:
+                                    Path(clip_staging).unlink(missing_ok=True)
+                                except Exception:
+                                    pass
 
                     if detections:
                         candidates = database.get_individual_embeddings()

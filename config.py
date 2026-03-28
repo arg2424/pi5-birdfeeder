@@ -18,6 +18,7 @@ MODELS_DIR = BASE_DIR / "models"
 LOGS_DIR = BASE_DIR / "logs"
 
 MESANGE_DIR = DATA_DIR / "mesange"
+EVENTS_VIDEO_DIR = DATA_DIR / "events_video"
 
 # Créer dossiers s'ils n'existent pas
 DATA_DIR.mkdir(exist_ok=True)
@@ -26,6 +27,7 @@ STAGING_DIR.mkdir(exist_ok=True)
 MODELS_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
 MESANGE_DIR.mkdir(exist_ok=True)
+EVENTS_VIDEO_DIR.mkdir(exist_ok=True)
 
 # ===== CAMERA =====
 CAMERA_RESOLUTION = os.getenv("CAMERA_RESOLUTION", "3280x2464")
@@ -36,6 +38,12 @@ CAPTURE_INTERVAL_SECONDS = float(os.getenv("CAPTURE_INTERVAL_SECONDS", "60"))
 MOTION_SCORE_THRESHOLD = float(os.getenv("MOTION_SCORE_THRESHOLD", "0.02"))
 MOTION_RESIZE_WIDTH = int(os.getenv("MOTION_RESIZE_WIDTH", "320"))
 MOTION_RESIZE_HEIGHT = int(os.getenv("MOTION_RESIZE_HEIGHT", "180"))
+
+# ===== EVENT CLIPS =====
+EVENT_CLIP_ENABLED = os.getenv("EVENT_CLIP_ENABLED", "true").lower() == "true"
+EVENT_CLIP_POST_FRAMES = int(os.getenv("EVENT_CLIP_POST_FRAMES", "6"))
+EVENT_CLIP_FRAME_INTERVAL_SECONDS = float(os.getenv("EVENT_CLIP_FRAME_INTERVAL_SECONDS", "0.2"))
+EVENT_CLIP_MAX_WIDTH = int(os.getenv("EVENT_CLIP_MAX_WIDTH", "960"))
 
 # ===== DETECTION =====
 YOLO_CONFIDENCE = float(os.getenv("YOLO_CONFIDENCE", "0.5"))

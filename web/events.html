@@ -88,6 +88,7 @@
             : `<span class="badge-none">—</span>`;
           const score = Number(item.motion_score).toFixed(4);
           const imgUrl = item.image_url ? `${item.image_url}?t=${Date.now()}` : '';
+          const clipUrl = item.clip_url ? `${item.clip_url}?t=${Date.now()}` : '';
 
           card.innerHTML = `
             <div class="event-select" onclick="toggleSelect('${item.id}', this.closest('.event-card'))">
@@ -99,6 +100,7 @@
                 <span class="msg">${item.created_at}</span><br/>
                 <span class="msg">motion=${score}</span>
               </div>
+              ${clipUrl ? `<div class="event-clip-wrap"><img class="event-clip" src="${clipUrl}" alt="clip event ${item.id}" loading="lazy" /></div>` : ''}
             </div>
             <button class="delete-btn" onclick="deleteSingle(${item.id}, this)">Supprimer</button>
           `;

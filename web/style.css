@@ -219,6 +219,19 @@ body {
   font-size: 13px;
 }
 
+.event-clip-wrap {
+  border-top: 1px solid var(--line);
+  padding: 8px;
+  background: #faf6ef;
+}
+
+.event-clip {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  display: block;
+}
+
 /* ---- Pagination ---- */
 .pagination {
   display: flex;

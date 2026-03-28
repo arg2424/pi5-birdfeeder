@@ -70,7 +70,7 @@ class CameraHandler:
             self._init_camera()
             
             # Générer nom de fichier avec timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             filename = f"capture_{timestamp}.jpg"
             filepath = CAPTURES_DIR / filename
             
@@ -90,7 +90,7 @@ class CameraHandler:
         try:
             self._init_camera()
 
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             filename = f"staging_{timestamp}.jpg"
             filepath = STAGING_DIR / filename
 

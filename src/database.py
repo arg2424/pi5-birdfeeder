@@ -31,12 +31,20 @@ class DatabaseHandler:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     created_at TEXT NOT NULL,
                     image_path TEXT NOT NULL,
+                    clip_path TEXT,
                     motion_score REAL NOT NULL,
                     threshold REAL NOT NULL,
                     bird_detections INTEGER NOT NULL DEFAULT 0
                 )
                 """
             )
+            # Migration légère si la colonne clip_path n'existe pas encore.
+            cols = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(motion_events)").fetchall()
+            }
+            if "clip_path" not in cols:
+                connection.execute("ALTER TABLE motion_events ADD COLUMN clip_path TEXT")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS individuals (
@@ -76,6 +84,7 @@ class DatabaseHandler:
         motion_score: float,
         threshold: float,
         bird_detections: int,
+        clip_path: str | None = None,
     ) -> int:
         """Enregistrer un événement de mouvement pour audit et tests."""
         with sqlite3.connect(self.db_path) as connection:
@@ -84,14 +93,16 @@ class DatabaseHandler:
                 INSERT INTO motion_events (
                     created_at,
                     image_path,
+                    clip_path,
                     motion_score,
                     threshold,
                     bird_detections
-                ) VALUES (?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     datetime.utcnow().isoformat(timespec="seconds"),
                     image_path,
+                    clip_path,
                     motion_score,
                     threshold,
                     bird_detections,
@@ -100,6 +111,15 @@ class DatabaseHandler:
             connection.commit()
         logger.info("Motion event recorded for %s", image_path)
         return int(cursor.lastrowid)
+
+    def set_motion_event_clip_path(self, motion_event_id: int, clip_path: str) -> None:
+        """Associe un clip à un événement déjà enregistré."""
+        with sqlite3.connect(self.db_path) as connection:
+            connection.execute(
+                "UPDATE motion_events SET clip_path = ? WHERE id = ?",
+                (clip_path, motion_event_id),
+            )
+            connection.commit()
 
     def get_individual_embeddings(self) -> list[tuple[int, list[float]]]:
         """Retourne les embeddings prototypes des individus connus."""
