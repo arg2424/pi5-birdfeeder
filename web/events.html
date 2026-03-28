@@ -100,7 +100,12 @@
                 <span class="msg">${item.created_at}</span><br/>
                 <span class="msg">motion=${score}</span>
               </div>
-              ${clipUrl ? `<div class="event-clip-wrap"><img class="event-clip" src="${clipUrl}" alt="clip event ${item.id}" loading="lazy" /></div>` : ''}
+              ${clipUrl ? `
+                <div class="event-clip-wrap">
+                  <img class="event-clip" src="${clipUrl}" alt="clip event ${item.id}" loading="lazy" ondblclick="openFullscreen(this)" />
+                  <button class="clip-full-btn" onclick="openFullscreen(this.previousElementSibling, event)">Plein ecran</button>
+                </div>
+              ` : ''}
             </div>
             <button class="delete-btn" onclick="deleteSingle(${item.id}, this)">Supprimer</button>
           `;
@@ -165,6 +170,18 @@
           btn.textContent = i + 1;
           btn.onclick = () => load(i * PAGE_SIZE);
           container.appendChild(btn);
+        }
+      }
+
+      function openFullscreen(el, evt) {
+        if (evt) evt.stopPropagation();
+        if (!el) return;
+        if (el.requestFullscreen) {
+          el.requestFullscreen();
+        } else if (el.webkitRequestFullscreen) {
+          el.webkitRequestFullscreen();
+        } else {
+          window.open(el.src, '_blank', 'noopener');
         }
       }
 

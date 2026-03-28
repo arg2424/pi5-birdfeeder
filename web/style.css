@@ -223,6 +223,7 @@ body {
   border-top: 1px solid var(--line);
   padding: 8px;
   background: #faf6ef;
+  position: relative;
 }
 
 .event-clip {
@@ -230,6 +231,24 @@ body {
   border-radius: 8px;
   border: 1px solid var(--line);
   display: block;
+}
+
+.clip-full-btn {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  border: 1px solid #c7d4e5;
+  background: rgba(244, 250, 255, 0.95);
+  color: #1e3a5f;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.clip-full-btn:hover {
+  filter: brightness(0.96);
 }
 
 /* ---- Pagination ---- */
